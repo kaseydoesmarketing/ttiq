@@ -55,3 +55,34 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(to bottom, #FF006E, #00F0FF);
 }
+
+/* ============================================================================
+   PULSE GLOW ANIMATION FOR "GENERATE TITLES" BUTTON
+   ============================================================================ */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow:
+      0 0 20px rgba(255, 107, 0, 0.4),
+      0 0 40px rgba(255, 107, 0, 0.2);
+  }
+  50% {
+    box-shadow:
+      0 0 30px rgba(255, 107, 0, 0.6),
+      0 0 60px rgba(255, 107, 0, 0.3);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* ============================================================================
+   TITLE CARD HOVER EFFECTS
+   ============================================================================ */
+.title-card {
+  @apply p-4 bg-dark/50 border border-gray-800 rounded-lg transition-all cursor-pointer;
+}
+
+.title-card:hover {
+  @apply border-primary/50 bg-dark/70;
+}

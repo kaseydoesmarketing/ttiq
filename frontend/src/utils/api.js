@@ -1,6 +1,8 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+// IMPORTANT: use production domain when VITE_API_URL is not set
+const API_URL =
+  import.meta.env.VITE_API_URL || 'https://titleiq.tightslice.com';
 
 const api = axios.create({
   baseURL: API_URL,
@@ -9,7 +11,7 @@ const api = axios.create({
   },
 });
 
-// Add auth token to requests if it exists
+// Attach JWT if logged in
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
@@ -18,7 +20,7 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle 401 errors (expired token)
+// Auto-logout on 401
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -33,7 +35,7 @@ api.interceptors.response.use(
 
 export default api;
 
-// Auth API
+// ---------- AUTH ----------
 export const auth = {
   register: (email, password) =>
     api.post('/api/auth/register', { email, password }),
@@ -41,11 +43,10 @@ export const auth = {
   login: (email, password) =>
     api.post('/api/auth/login', { email, password }),
 
-  me: () =>
-    api.get('/api/auth/me'),
+  me: () => api.get('/api/auth/me'),
 };
 
-// Settings API
+// ---------- SETTINGS ----------
 export const settings = {
   saveApiKey: (apiKey, provider) =>
     api.post('/api/settings/api-key', { apiKey, provider }),
@@ -57,8 +58,32 @@ export const settings = {
     api.delete('/api/settings/api-key'),
 };
 
-// Generation API
+// ---------- ASYNC TRANSCRIPT API (v2) ----------
+export const transcript = {
+  // Start transcript extraction (returns immediately)
+  startFromUrl: async (videoUrl) => {
+    const response = await api.post('/api/transcript/start', { url: videoUrl });
+    return response.data;
+  },
+
+  // Poll for async job status
+  getStatus: async (jobId) => {
+    const response = await api.get(`/api/transcript/status/${jobId}`);
+    return response.data;
+  },
+};
+
+// ---------- TITLE GENERATION ----------
 export const generation = {
+  // Takes raw transcript text and generates titles + description
+  generateTitles: async (transcriptText) => {
+    const response = await api.post('/api/generate-titles', {
+      transcript: transcriptText,
+    });
+    return response.data;
+  },
+
+  // Legacy fallback (old combined route - keep for backward compatibility)
   generate: (input, type) =>
     api.post('/api/generate', { input, type }),
 };

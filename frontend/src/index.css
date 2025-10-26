@@ -1,0 +1,57 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-dark text-gray-100 font-body;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply px-6 py-3 bg-gradient-to-r from-primary to-secondary text-dark font-semibold rounded-lg hover:shadow-lg hover:shadow-primary/50 transition-all duration-300;
+  }
+
+  .btn-secondary {
+    @apply px-6 py-3 bg-dark border-2 border-primary text-primary font-semibold rounded-lg hover:bg-primary hover:text-dark transition-all duration-300;
+  }
+
+  .input-field {
+    @apply w-full px-4 py-3 bg-dark/50 border-2 border-gray-700 rounded-lg text-gray-100 focus:border-primary focus:outline-none transition-all duration-300;
+  }
+
+  .card {
+    @apply bg-dark/90 border border-gray-800 rounded-xl p-6 backdrop-blur-sm;
+  }
+
+  .title-card {
+    @apply bg-gradient-to-br from-dark/90 to-gray-900/90 border-2 border-gray-800 rounded-lg p-4 hover:border-primary transition-all duration-300 cursor-pointer;
+  }
+}
+
+/* Futuristic gradient background */
+body {
+  background: linear-gradient(135deg, #0A0E27 0%, #1a1f3a 50%, #0A0E27 100%);
+  min-height: 100vh;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0A0E27;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(to bottom, #00F0FF, #9D4EDD);
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(to bottom, #FF006E, #00F0FF);
+}

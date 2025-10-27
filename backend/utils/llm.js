@@ -63,7 +63,7 @@ function extractThemes(transcript) {
  * Build the LLM prompt for title generation
  */
 function buildPrompt(transcript, themes) {
-  return `You are an expert YouTube title optimizer. Analyze the following video transcript and generate exactly 10 high-impact, CTR-optimized titles.
+  return `You are an elite YouTube title strategist. Your titles weaponize curiosity and contrast to force clicks.
 
 TRANSCRIPT:
 ${transcript.substring(0, 3000)} ${transcript.length > 3000 ? '...(truncated)' : ''}
@@ -73,26 +73,39 @@ ${themes.join(', ')}
 
 REQUIREMENTS:
 1. Generate exactly 10 titles
-2. Each title must be 45-65 characters
-3. Front-load strong nouns/verbs in first 40 characters
-4. Use psychological triggers: curiosity gaps, fear/urgency, authority
-5. Incorporate themes naturally
-6. Optimize for mobile (short, punchy)
-7. Ensure titles accurately represent the content
+2. **CONTRAST RULE**: At least 4 titles MUST use aggressive contrast (logical OR illogical).
+   - Logical contrast: "I Spent $10,000 To Prove Why $0 Is Smarter"
+   - Illogical contrast: "I Failed Miserably And Won Completely"
+   - Must create tension and curiosity, not just "A vs B"
+3. **CURIOSITY RULE**: ALL 10 titles must weaponize curiosity. Viewer must think: "I don't understand this but I NEED to."
+4. **LENGTH RULE**: At least 4 titles must be long-form hooks (up to ~100 characters). Rest can be tight punches.
+5. Front-load power words in first 40 characters (mobile optimization)
+6. Use psychological triggers: curiosity gaps, fear/urgency, authority, status elevation
+7. Include status-flex language where appropriate ("they don't want you to know," "elite unlock," "superiority")
+8. Ensure titles accurately represent content
 
-TITLE FORMULAS TO USE (mix and match):
+TITLE FORMULAS (mix and match):
 - Shock + Keyword + Outcome
 - Status Game Flip
-- Villain/Expose
-- Quest/Constraint
+- Villain/Expose + Contrast
+- Quest/Constraint + Illogical Element
 - Make/Break Decision
 - Identity Hook + Obstacle Removal
-- Contrarian How-To
+- Contrarian How-To + Status Elevation
 
-Also generate ONE concise description (maximum 500 characters) that:
-- Aligns with the strongest title's promise
-- Maintains curiosity gap
-- Incorporates primary keywords naturally
+ALSO GENERATE:
+
+**DESCRIPTION (500-800 characters):**
+- 2X longer than typical YouTube description
+- SEO-optimized for 2026 discoverability
+- High-intent keywords relevant to transcript topic
+- Natural call to action to subscribe/engage
+- Include one self-reference: "Optimized with TitleIQ by TightSlice"
+
+**TAGS (comma-separated, <500 chars total):**
+- Mix of broad, niche, and long-tail keywords
+- Aligned with transcript topic
+- Formatted as: tag1, tag2, tag3, etc.
 
 FORMAT YOUR RESPONSE EXACTLY AS:
 TITLES:
@@ -108,7 +121,10 @@ TITLES:
 10. [Title 10]
 
 DESCRIPTION:
-[Your description here]`;
+[Your 500-800 character SEO-optimized description with TitleIQ mention]
+
+TAGS:
+[tag1, tag2, tag3, etc.]`;
 }
 
 /**
@@ -119,7 +135,9 @@ function parseResponse(response, themes) {
 
   const titles = [];
   let description = '';
+  let tags = '';
   let inDescriptionSection = false;
+  let inTagsSection = false;
 
   for (const line of lines) {
     // Extract numbered titles
@@ -132,11 +150,23 @@ function parseResponse(response, themes) {
     // Start collecting description
     if (line.includes('DESCRIPTION:')) {
       inDescriptionSection = true;
+      inTagsSection = false;
       continue;
     }
 
-    if (inDescriptionSection) {
+    // Start collecting tags
+    if (line.includes('TAGS:')) {
+      inTagsSection = true;
+      inDescriptionSection = false;
+      continue;
+    }
+
+    if (inDescriptionSection && !inTagsSection) {
       description += line.trim() + ' ';
+    }
+
+    if (inTagsSection) {
+      tags += line.trim() + ' ';
     }
   }
 
@@ -145,12 +175,14 @@ function parseResponse(response, themes) {
     throw new Error(`Only generated ${titles.length} titles, expected 10`);
   }
 
-  // Trim description to 500 characters
-  description = description.trim().substring(0, 500);
+  // Trim and limit
+  description = description.trim().substring(0, 800);
+  tags = tags.trim().substring(0, 500);
 
   return {
     titles: titles.slice(0, 10),
     description,
+    tags,
     themes
   };
 }

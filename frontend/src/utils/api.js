@@ -1,89 +1,151 @@
 import axios from 'axios';
 
-// IMPORTANT: use production domain when VITE_API_URL is not set
-const API_URL =
-  import.meta.env.VITE_API_URL || 'https://titleiq.tightslice.com';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
+// Create axios instance
 const api = axios.create({
-  baseURL: API_URL,
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Attach JWT if logged in
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+// Request interceptor - attach JWT token
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('titleiq_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
 
-// Auto-logout on 401
+// Response interceptor - handle 401 globally
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
+      // Unauthorized - clear token and redirect to login
+      localStorage.removeItem('titleiq_token');
+      if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }
 );
 
-export default api;
+// ============================================
+// AUTH APIs
+// ============================================
 
-// ---------- AUTH ----------
-export const auth = {
-  register: (email, password) =>
-    api.post('/api/auth/register', { email, password }),
-
-  login: (email, password) =>
-    api.post('/api/auth/login', { email, password }),
-
-  me: () => api.get('/api/auth/me'),
-};
-
-// ---------- SETTINGS ----------
-export const settings = {
-  saveApiKey: (apiKey, provider) =>
-    api.post('/api/settings/api-key', { apiKey, provider }),
-
-  getApiKeyStatus: () =>
-    api.get('/api/settings/api-key'),
-
-  deleteApiKey: () =>
-    api.delete('/api/settings/api-key'),
-};
-
-// ---------- ASYNC TRANSCRIPT API (v2) ----------
-export const transcript = {
-  // Start transcript extraction (returns immediately)
-  startFromUrl: async (videoUrl) => {
-    const response = await api.post('/api/transcript/start', { url: videoUrl });
+export const authApi = {
+  register: async (email, password) => {
+    const response = await api.post('/api/auth/register', { email, password });
     return response.data;
   },
 
-  // Poll for async job status
+  login: async (email, password) => {
+    const response = await api.post('/api/auth/login', { email, password });
+    return response.data;
+  },
+
+  getMe: async () => {
+    const response = await api.get('/api/auth/me');
+    return response.data;
+  },
+};
+
+// ============================================
+// TRANSCRIPT APIs
+// ============================================
+
+export const transcriptApi = {
+  start: async (url) => {
+    const response = await api.post('/api/transcript/start', { url });
+    return response.data;
+  },
+
   getStatus: async (jobId) => {
     const response = await api.get(`/api/transcript/status/${jobId}`);
     return response.data;
   },
 };
 
-// ---------- TITLE GENERATION ----------
-export const generation = {
-  // Takes raw transcript text and generates titles + description
-  generateTitles: async (transcriptText) => {
-    const response = await api.post('/api/generate-titles', {
-      transcript: transcriptText,
+// ============================================
+// GENERATION APIs
+// ============================================
+
+export const generateApi = {
+  generateTitles: async (transcript, provider = 'groq') => {
+    const response = await api.post('/api/generate', {
+      input: transcript,
+      type: 'text',
+      provider,
     });
     return response.data;
   },
-
-  // Legacy fallback (old combined route - keep for backward compatibility)
-  generate: (input, type) =>
-    api.post('/api/generate', { input, type }),
 };
+
+// ============================================
+// USER APIs
+// ============================================
+
+export const userApi = {
+  getHistory: async (limit = 20) => {
+    const response = await api.get(`/api/user/history?limit=${limit}`);
+    return response.data;
+  },
+
+  getUsage: async () => {
+    const response = await api.get('/api/user/usage');
+    return response.data;
+  },
+
+  updateProvider: async (provider) => {
+    const response = await api.patch('/api/user/provider', { provider });
+    return response.data;
+  },
+
+  getAdminMetrics: async () => {
+    const response = await api.get('/api/admin/metrics');
+    return response.data;
+  },
+};
+
+// ============================================
+// BILLING APIs
+// ============================================
+
+export const billingApi = {
+  createCheckoutSession: async (plan) => {
+    const response = await api.post('/api/billing/create-checkout-session', { plan });
+    return response.data;
+  },
+};
+
+// ============================================
+// NEWSLETTER APIs
+// ============================================
+
+export const newsletterApi = {
+  signup: async (email) => {
+    const response = await api.post('/api/newsletter/signup', { email });
+    return response.data;
+  },
+};
+
+// ============================================
+// ADMIN APIs
+// ============================================
+
+export const adminApi = {
+  getMetrics: async () => {
+    const response = await api.get('/api/admin/metrics');
+    return response.data;
+  },
+};
+
+export default api;

@@ -1,129 +1,132 @@
 import express from 'express';
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { userDb } from '../utils/db.js';
-import { authenticateToken } from '../middleware/auth.js';
+import { generateToken, authenticateToken } from '../middleware/auth.js';
+import { authRateLimit } from '../middleware/rateLimit.js';
 
 const router = express.Router();
 
-/**
- * POST /api/auth/register
- * Register a new user
- */
-router.post('/register', async (req, res) => {
+// POST /api/auth/register - Create new user with 3-day trial
+router.post('/register', authRateLimit, async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Validation
     if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
+      return res.status(400).json({ error: 'Email and password required' });
     }
 
-    if (password.length < 8) {
-      return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: 'Invalid email format' });
     }
 
-    // Check if user exists
-    const existingUser = userDb.findByEmail(email);
-    if (existingUser) {
-      return res.status(409).json({ error: 'Email already registered' });
+    const existing = userDb.findByEmail(email);
+    if (existing) {
+      return res.status(400).json({ error: 'Email already registered' });
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(password, 10);
+    const userId = 'user_' + Date.now() + '_' + crypto.randomBytes(8).toString('hex');
+    
+    userDb.create(userId, email, passwordHash, {
+      role: 'user',
+      plan: 'trial',
+      status: 'trial'
+    });
 
-    // Create user
-    const userId = crypto.randomUUID();
-    userDb.create(userId, email, hashedPassword);
+    const token = generateToken(userId);
+    const user = userDb.findById(userId);
 
-    // Generate JWT
-    const token = jwt.sign(
-      { id: userId, email },
-      process.env.JWT_SECRET,
-      { expiresIn: '30d' }
-    );
+    console.log('[AUTH] New user registered:', email, '(trial)');
 
-    res.status(201).json({
+    return res.status(201).json({
+      success: true,
       token,
       user: {
-        id: userId,
-        email
+        id: user.id,
+        email: user.email,
+        plan: user.plan,
+        status: user.status,
+        trial_expires: user.trial_expires
       }
     });
+
   } catch (error) {
-    console.error('Register error:', error);
-    res.status(500).json({ error: 'Registration failed' });
+    console.error('[AUTH] Registration error:', error);
+    return res.status(500).json({ error: 'Registration failed' });
   }
 });
 
-/**
- * POST /api/auth/login
- * Login existing user
- */
-router.post('/login', async (req, res) => {
+// POST /api/auth/login
+router.post('/login', authRateLimit, async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Validation
     if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
+      return res.status(400).json({ error: 'Email and password required' });
     }
 
-    // Find user
     const user = userDb.findByEmail(email);
     if (!user) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    // Verify password
-    const isValid = await bcrypt.compare(password, user.password);
-    if (!isValid) {
+    const validPassword = await bcrypt.compare(password, user.password_hash);
+    if (!validPassword) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    // Generate JWT
-    const token = jwt.sign(
-      { id: user.id, email: user.email },
-      process.env.JWT_SECRET,
-      { expiresIn: '30d' }
-    );
+    const token = generateToken(user.id);
 
-    res.json({
+    console.log('[AUTH] User logged in:', email);
+
+    return res.json({
+      success: true,
       token,
       user: {
         id: user.id,
-        email: user.email
+        email: user.email,
+        role: user.role,
+        plan: user.plan,
+        status: user.status,
+        trial_expires: user.trial_expires
       }
     });
+
   } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ error: 'Login failed' });
+    console.error('[AUTH] Login error:', error);
+    return res.status(500).json({ error: 'Login failed' });
   }
 });
 
-/**
- * GET /api/auth/me
- * Get current user info
- */
-router.get('/me', authenticateToken, (req, res) => {
+// GET /api/auth/me
+router.get('/me', authenticateToken, async (req, res) => {
   try {
-    const user = userDb.findById(req.user.id);
+    const user = req.user;
+    const now = Date.now();
+    const trialExpired = user.status === 'trial' && user.trial_expires && user.trial_expires < now;
 
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    res.json({
+    return res.json({
+      success: true,
       user: {
         id: user.id,
         email: user.email,
-        hasApiKey: !!user.api_key
+        role: user.role,
+        plan: user.plan,
+        status: user.status,
+        trial_start: user.trial_start,
+        trial_expires: user.trial_expires,
+        trial_expired: trialExpired,
+        billing_status: user.billing_status,
+        model_provider: user.model_provider,
+        created_at: user.created_at
       }
     });
+
   } catch (error) {
-    console.error('Get user error:', error);
-    res.status(500).json({ error: 'Failed to get user info' });
+    console.error('[AUTH] /me error:', error);
+    return res.status(500).json({ error: 'Failed to get user profile' });
   }
 });
 

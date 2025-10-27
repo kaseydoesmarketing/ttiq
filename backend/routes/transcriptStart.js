@@ -2,6 +2,7 @@ import express from 'express';
 import crypto from 'crypto';
 import db, { transcriptJobs } from '../utils/db.js';
 import { getCaptionsViaNodejs } from '../utils/captionsNodejs.js';
+import { aggressiveRateLimit } from '../middleware/rateLimit.js';
 
 const router = express.Router();
 
@@ -26,7 +27,7 @@ function extractVideoId(url) {
  * POST /api/transcript/start
  * Fast endpoint that either returns captions immediately or creates async job
  */
-router.post('/', async (req, res) => {
+router.post('/', aggressiveRateLimit, async (req, res) => {
   try {
     const { url } = req.body;
 

@@ -1,9 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '../context/AuthContext';
+import { generateApi } from '../utils/api';
+import { track } from '../utils/analytics';
 import Navbar from '../components/Navbar';
-import { transcript, generation } from '../utils/api';
+import QuotaPill from '../components/QuotaPill';
+import AuthGateModal from '../components/AuthGateModal';
+import UpgradeModal from '../components/UpgradeModal';
 
 export default function AppPage() {
+  const { user, isAuthed } = useAuth();
+
   // Phase state machine
   const [phase, setPhase] = useState('idle');
   // Phases: 'idle', 'fetchingTranscript', 'waitingForASR', 'transcriptReady', 'generatingTitles', 'titlesReady', 'error'
@@ -19,16 +26,19 @@ export default function AppPage() {
   const [sourceInfo, setSourceInfo] = useState(null); // { cached, source, videoId, durationSec }
   const [activeJobId, setActiveJobId] = useState(null);
   const [statusMessage, setStatusMessage] = useState('');
+  const [pollingStartTime, setPollingStartTime] = useState(null);
 
   // Error state
   const [error, setError] = useState('');
 
   // Results state
-  const [titlesResult, setTitlesResult] = useState(null); // { titles[], description, angles, usedProvider }
+  const [titlesResult, setTitlesResult] = useState(null); // { titles[], description, tags, usedProvider }
 
   // UI state
   const [copyToastVisible, setCopyToastVisible] = useState(false);
   const [loadingDots, setLoadingDots] = useState('');
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   // Animated loading dots effect
   useEffect(() => {
@@ -48,7 +58,20 @@ export default function AppPage() {
 
     const interval = setInterval(async () => {
       try {
-        const data = await transcript.getStatus(activeJobId);
+        // Check for 2-minute timeout
+        const now = Date.now();
+        if (pollingStartTime && (now - pollingStartTime) > 2 * 60 * 1000) {
+          clearInterval(interval);
+          setActiveJobId(null);
+          setPollingStartTime(null);
+          setStatusMessage('');
+          setPhase('error');
+          setError('Transcription timed out. Please try again or paste your script manually.');
+          return;
+        }
+
+        const response = await fetch(`/api/transcript/status/${activeJobId}`);
+        const data = await response.json();
 
         if (data.status === 'done') {
           // Job completed successfully
@@ -61,12 +84,14 @@ export default function AppPage() {
             durationSec: data.durationSec || null,
           });
           setActiveJobId(null);
+          setPollingStartTime(null);
           setStatusMessage('');
           setPhase('transcriptReady');
         } else if (data.status === 'error') {
           // Job failed - allow manual paste
           clearInterval(interval);
           setActiveJobId(null);
+          setPollingStartTime(null);
           setStatusMessage('');
           setError(data.error || "We couldn't auto-transcribe this video. Paste your script below.");
           setPhase('transcriptReady');
@@ -80,6 +105,7 @@ export default function AppPage() {
         // Network error during polling - stop and allow manual paste
         clearInterval(interval);
         setActiveJobId(null);
+        setPollingStartTime(null);
         setStatusMessage('');
         setError('Connection lost while transcribing. Please paste your script manually.');
         setPhase('transcriptReady');
@@ -87,7 +113,7 @@ export default function AppPage() {
     }, 5000); // Poll every 5 seconds
 
     return () => clearInterval(interval);
-  }, [activeJobId]);
+  }, [activeJobId, pollingStartTime]);
 
   // Handle Get Transcript from URL
   const handleGetTranscript = async () => {
@@ -113,7 +139,12 @@ export default function AppPage() {
     setTranscriptText('');
 
     try {
-      const data = await transcript.startFromUrl(videoUrl);
+      const response = await fetch('/api/transcript', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: videoUrl }),
+      });
+      const data = await response.json();
 
       if (data.status === 'done') {
         // Fast path - captions or cache hit
@@ -128,6 +159,7 @@ export default function AppPage() {
       } else if (data.status === 'processing' && data.jobId) {
         // Async ASR job - start polling
         setActiveJobId(data.jobId);
+        setPollingStartTime(Date.now());
         setStatusMessage(data.message || 'Transcribing audio… this can take ~2 minutes.');
         setPhase('waitingForASR');
       } else if (data.status === 'error') {
@@ -143,18 +175,18 @@ export default function AppPage() {
     } catch (err) {
       // Network or server error
       setPhase('error');
-      if (err.response?.data?.error) {
-        setError(err.response.data.error);
-      } else if (err.message) {
-        setError(`Network error: ${err.message}`);
-      } else {
-        setError('Failed to connect to server. Please try again.');
-      }
+      setError(err.message || 'Failed to connect to server. Please try again.');
     }
   };
 
   // Handle Generate Titles
   const handleGenerateTitles = async () => {
+    // Auth gate - show modal if not logged in
+    if (!isAuthed) {
+      setShowAuthModal(true);
+      return;
+    }
+
     const trimmed = transcriptText.trim();
 
     if (trimmed.length < 100) {
@@ -162,17 +194,24 @@ export default function AppPage() {
       return;
     }
 
+    // Track generation request
+    track('generate_request', {
+      plan: user?.plan || 'guest',
+      transcriptLength: trimmed.length,
+      inputMode: inputMode
+    });
+
     setPhase('generatingTitles');
     setError('');
 
     try {
-      const data = await generation.generateTitles(trimmed);
+      const data = await generateApi.generateTitles(trimmed);
 
-      if (data.success && data.titles && data.titles.length > 0) {
+      if (data.titles && data.titles.length > 0) {
         setTitlesResult({
           titles: data.titles,
           description: data.description || '',
-          angles: data.angles || [],
+          tags: data.tags || '',
           usedProvider: data.usedProvider || 'AI',
         });
         setPhase('titlesReady');
@@ -181,13 +220,17 @@ export default function AppPage() {
         setError(data.error || 'Failed to generate titles. Please try again.');
       }
     } catch (err) {
-      setPhase('error');
-      if (err.response?.data?.error) {
-        setError(err.response.data.error);
-      } else if (err.message) {
-        setError(`Error: ${err.message}`);
+      // Check for 429 (daily limit exceeded)
+      if (err.response?.status === 429) {
+        track('upgrade_modal_shown', {
+          currentPlan: user?.plan || 'guest',
+          reason: 'daily_limit_exceeded'
+        });
+        setShowUpgradeModal(true);
+        setPhase('transcriptReady');
       } else {
-        setError('Failed to generate titles. Please try again.');
+        setPhase('error');
+        setError(err.response?.data?.error || err.message || 'Failed to generate titles. Please try again.');
       }
     }
   };
@@ -210,24 +253,29 @@ export default function AppPage() {
     const badges = [];
     const lower = title.toLowerCase();
 
+    // Contrast Hook - vs, but, while, although, yet
+    if (/(vs\.|but|while|although|yet|however|despite|even though)/i.test(lower)) {
+      badges.push({ label: 'Contrast', color: 'bg-orange-500' });
+    }
+
+    // Curiosity Gap - secret, reveal, unlock, discover, hidden, truth, never, what, why, how
+    if (/(secret|reveal|unlock|discover|hidden|truth|never|nobody|what|why|how|this)/i.test(lower)) {
+      badges.push({ label: 'Curiosity', color: 'bg-purple-500' });
+    }
+
     // Pain Hook - struggle, fix, avoid, mistake, problem, fail
     if (/(avoid|mistake|fail|struggle|problem|fix|wrong|error|trap)/i.test(lower)) {
       badges.push({ label: 'Pain Hook', color: 'bg-red-500' });
     }
 
-    // Curiosity Gap - secret, reveal, unlock, discover, hidden, truth, never
-    if (/(secret|reveal|unlock|discover|hidden|truth|never|nobody|what|why|how)/i.test(lower)) {
-      badges.push({ label: 'Curiosity Gap', color: 'bg-purple-500' });
-    }
-
     // Status Flex - transform, level up, zero to hero, master, pro, expert
     if (/(transform|level.?up|zero.?to|master|pro|expert|advanced|elite|become)/i.test(lower)) {
-      badges.push({ label: 'Status Flex', color: 'bg-blue-500' });
+      badges.push({ label: 'Status', color: 'bg-blue-500' });
     }
 
     // Fallback
     if (badges.length === 0) {
-      badges.push({ label: 'Viral Hook', color: 'bg-green-500' });
+      badges.push({ label: 'Hook', color: 'bg-green-500' });
     }
 
     return badges;
@@ -284,9 +332,20 @@ export default function AppPage() {
 
   // Copy functions
   const copyToClipboard = (text) => {
-    navigator.clipboard.writeText(text);
-    setCopyToastVisible(true);
-    setTimeout(() => setCopyToastVisible(false), 2000);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text)
+        .then(() => {
+          setCopyToastVisible(true);
+          setTimeout(() => setCopyToastVisible(false), 2000);
+        })
+        .catch(() => {
+          // Fallback: show message that copy failed
+          alert('Copy not supported in this browser. Please copy manually.');
+        });
+    } else {
+      // Old browser - show alert with text
+      alert('Clipboard not supported. Please copy manually:\n\n' + text);
+    }
   };
 
   const copyAll = () => {
@@ -298,7 +357,10 @@ export default function AppPage() {
       '📝 DESCRIPTION:',
       titlesResult.description,
       '',
-      `✨ Generated with ${titlesResult.usedProvider}`,
+      '🏷️ TAGS:',
+      titlesResult.tags,
+      '',
+      `✨ Generated with ${titlesResult.usedProvider} via TitleIQ by TightSlice`,
     ].join('\n');
     copyToClipboard(allText);
   };
@@ -307,7 +369,7 @@ export default function AppPage() {
   const getDopamineMessage = () => {
     const messages = [
       'Weaponizing curiosity gaps',
-      'Extracting status-elevating claims',
+      'Extracting contrast hooks',
       'Optimizing for algorithmic dominance',
       'Injecting dopamine triggers',
       'Crafting irresistible hooks',
@@ -315,9 +377,13 @@ export default function AppPage() {
     return messages[Math.floor(Math.random() * messages.length)];
   };
 
+  // Check if user is trial (to show blurred tags)
+  const isTrialUser = user?.plan === 'trial';
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
       <Navbar />
+      <QuotaPill />
 
       <main className="container mx-auto px-4 py-12 max-w-5xl">
         <AnimatePresence mode="wait">
@@ -339,7 +405,7 @@ export default function AppPage() {
                   YouTube Title Generator
                 </h1>
                 <p className="text-lg text-purple-200">
-                  Turn your video into algorithmic gold
+                  Multi-model AI engine • TitleIQ by TightSlice
                 </p>
               </div>
 
@@ -372,7 +438,7 @@ export default function AppPage() {
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="card space-y-4"
+                  className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20 space-y-4"
                 >
                   <label className="block">
                     <span className="text-sm font-medium text-gray-300 mb-2 block">
@@ -383,7 +449,7 @@ export default function AppPage() {
                       value={videoUrl}
                       onChange={(e) => setVideoUrl(e.target.value)}
                       placeholder="https://youtube.com/watch?v=..."
-                      className="input-field"
+                      className="w-full px-4 py-3 bg-slate-900/50 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 transition"
                       disabled={phase === 'fetchingTranscript' || phase === 'waitingForASR'}
                     />
                   </label>
@@ -391,11 +457,11 @@ export default function AppPage() {
                   <button
                     onClick={handleGetTranscript}
                     disabled={phase === 'fetchingTranscript' || phase === 'waitingForASR'}
-                    className="btn-primary w-full"
+                    className="w-full px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-semibold hover:from-purple-600 hover:to-pink-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {phase === 'fetchingTranscript' && `Checking for captions${loadingDots}`}
                     {phase === 'waitingForASR' && `Transcribing audio${loadingDots}`}
-                    {phase !== 'fetchingTranscript' && phase !== 'waitingForASR' && 'Get Transcript'}
+                    {phase !== 'fetchingTranscript' && phase !== 'waitingForASR' && 'Fetch Transcript'}
                   </button>
 
                   {/* Status message during async processing */}
@@ -434,7 +500,7 @@ export default function AppPage() {
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="card space-y-4"
+                  className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20 space-y-4"
                 >
                   <label className="block">
                     <span className="text-sm font-medium text-gray-300 mb-2 block">
@@ -450,7 +516,7 @@ export default function AppPage() {
                       }}
                       placeholder="Paste your video transcript here..."
                       rows={10}
-                      className="input-field resize-none"
+                      className="w-full px-4 py-3 bg-slate-900/50 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 transition resize-none"
                     />
                   </label>
                   <div className="text-sm text-gray-400">
@@ -469,7 +535,7 @@ export default function AppPage() {
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="card space-y-4"
+                  className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20 space-y-4"
                 >
                   {renderSourcePill()}
 
@@ -482,7 +548,7 @@ export default function AppPage() {
                       onChange={(e) => setTranscriptText(e.target.value)}
                       placeholder="Your transcript will appear here..."
                       rows={10}
-                      className="input-field resize-none"
+                      className="w-full px-4 py-3 bg-slate-900/50 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 transition resize-none"
                     />
                   </label>
 
@@ -517,13 +583,13 @@ export default function AppPage() {
                   <button
                     onClick={handleGenerateTitles}
                     disabled={generateButtonDisabled}
-                    className={`btn-primary w-full text-lg py-4 ${
-                      shouldPulse ? 'animate-pulse-glow' : ''
+                    className={`w-full px-6 py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-bold text-lg hover:from-purple-600 hover:to-pink-600 transition disabled:opacity-50 disabled:cursor-not-allowed ${
+                      shouldPulse ? 'animate-pulse' : ''
                     }`}
                   >
                     {phase === 'generatingTitles'
                       ? `${getDopamineMessage()}${loadingDots}`
-                      : '✨ Generate Titles'}
+                      : '✨ Generate 10 Titles'}
                   </button>
                 </motion.div>
               )}
@@ -544,7 +610,7 @@ export default function AppPage() {
                 <h2 className="text-3xl font-bold text-white">Your Titles</h2>
                 <button
                   onClick={copyAll}
-                  className="btn-secondary flex items-center gap-2"
+                  className="px-4 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition flex items-center gap-2"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
@@ -568,7 +634,7 @@ export default function AppPage() {
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: idx * 0.05 }}
-                      className="title-card group"
+                      className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20 hover:border-purple-500/50 transition group flex items-start justify-between gap-4"
                     >
                       <div className="flex-1">
                         <div className="flex items-start gap-3 mb-2">
@@ -597,7 +663,7 @@ export default function AppPage() {
 
                       <button
                         onClick={() => copyToClipboard(title)}
-                        className="btn-secondary opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="px-3 py-1 bg-white/10 text-white rounded text-sm hover:bg-white/20 transition opacity-0 group-hover:opacity-100"
                       >
                         Copy
                       </button>
@@ -612,13 +678,13 @@ export default function AppPage() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.5 }}
-                  className="card bg-gradient-to-br from-purple-900/30 to-blue-900/30 border-purple-500/30"
+                  className="bg-gradient-to-br from-purple-900/30 to-blue-900/30 backdrop-blur-sm rounded-xl p-6 border border-purple-500/30"
                 >
                   <div className="flex items-start justify-between gap-4 mb-3">
-                    <h3 className="text-xl font-bold text-white">Description</h3>
+                    <h3 className="text-xl font-bold text-white">SEO Description</h3>
                     <button
                       onClick={() => copyToClipboard(titlesResult.description)}
-                      className="btn-secondary"
+                      className="px-3 py-1 bg-white/10 text-white rounded text-sm hover:bg-white/20 transition"
                     >
                       Copy
                     </button>
@@ -629,18 +695,69 @@ export default function AppPage() {
                 </motion.div>
               )}
 
+              {/* Tags */}
+              {titlesResult.tags && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.6 }}
+                  className="bg-gradient-to-br from-pink-900/30 to-purple-900/30 backdrop-blur-sm rounded-xl p-6 border border-pink-500/30 relative"
+                >
+                  <div className="flex items-start justify-between gap-4 mb-3">
+                    <h3 className="text-xl font-bold text-white">SEO Tags</h3>
+                    {!isTrialUser && (
+                      <button
+                        onClick={() => copyToClipboard(titlesResult.tags)}
+                        className="px-3 py-1 bg-white/10 text-white rounded text-sm hover:bg-white/20 transition"
+                      >
+                        Copy
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Trial users see blurred tags with upgrade CTA */}
+                  {isTrialUser ? (
+                    <div className="relative">
+                      <p className="text-gray-200 blur-sm select-none">
+                        {titlesResult.tags}
+                      </p>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="bg-slate-900/90 backdrop-blur-sm rounded-lg p-6 text-center border border-purple-500/50">
+                          <p className="text-white font-semibold mb-3">
+                            🔒 Upgrade to see SEO tags
+                          </p>
+                          <button
+                            onClick={() => setShowUpgradeModal(true)}
+                            className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg text-sm font-semibold hover:from-purple-600 hover:to-pink-600 transition"
+                          >
+                            Upgrade Now
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-gray-200 leading-relaxed">
+                      {titlesResult.tags}
+                    </p>
+                  )}
+                </motion.div>
+              )}
+
               {/* Provider Footer */}
               <div className="text-center text-sm text-gray-400">
-                ✨ Generated with {titlesResult.usedProvider}
+                ✨ Generated with {titlesResult.usedProvider} via TitleIQ by TightSlice
               </div>
 
               {/* Generate New Titles Button */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ delay: 0.6 }}
+                transition={{ delay: 0.7 }}
               >
-                <button onClick={handleReset} className="btn-primary w-full">
+                <button
+                  onClick={handleReset}
+                  className="w-full px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-semibold hover:from-purple-600 hover:to-pink-600 transition"
+                >
                   Generate New Titles
                 </button>
               </motion.div>
@@ -654,18 +771,29 @@ export default function AppPage() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="card bg-red-900/20 border-red-500/50 text-center"
+              className="bg-red-900/20 backdrop-blur-sm rounded-xl p-8 border border-red-500/50 text-center"
             >
               <div className="text-6xl mb-4">⚠️</div>
               <h2 className="text-2xl font-bold text-white mb-3">Something Went Wrong</h2>
               <p className="text-red-200 mb-6">{error}</p>
-              <button onClick={handleReset} className="btn-primary">
+              <button
+                onClick={handleReset}
+                className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-semibold hover:from-purple-600 hover:to-pink-600 transition"
+              >
                 Try Again
               </button>
             </motion.div>
           )}
         </AnimatePresence>
       </main>
+
+      {/* Modals */}
+      <AuthGateModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
+      <UpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        currentPlan={user?.plan || 'trial'}
+      />
 
       {/* Copy Toast */}
       <AnimatePresence>
@@ -674,7 +802,7 @@ export default function AppPage() {
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 50 }}
-            className="fixed bottom-8 right-8 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-2"
+            className="fixed bottom-8 right-8 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 z-50"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path

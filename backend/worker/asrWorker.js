@@ -38,7 +38,7 @@ async function getVideoDuration(videoId) {
     const info = await ytdl.getInfo(videoId);
     return parseInt(info.videoDetails.lengthSeconds, 10);
   } catch (error) {
-    console.warn(`[${videoId}] Could not get duration:`, error.message);
+    console.warn(`[ASR_DURATION_FAIL] ${videoId} ${error.message}`);
     return null;
   }
 }
@@ -139,7 +139,7 @@ function cleanupTempFile(filePath) {
 async function processJob(job) {
   const { job_id, video_id } = job;
 
-  console.log(`\n[${video_id}] Processing job ${job_id}...`);
+  console.log(`[ASR_START] ${video_id} jobId=${job_id}`);
 
   // Mark as processing
   transcriptJobs.markProcessing(job_id);
@@ -172,10 +172,10 @@ async function processJob(job) {
 
     // Mark job as done
     transcriptJobs.markDone(job_id, transcript, 'asr', durationSec);
-    console.log(`[${video_id}] ✓ Job ${job_id} completed successfully`);
+    console.log(`[ASR_DONE] ${video_id} ${durationSec || 0}sec ${transcript.length}chars jobId=${job_id}`);
 
   } catch (error) {
-    console.error(`[${video_id}] ✗ Job ${job_id} failed:`, error.message);
+    console.error(`[ASR_FAIL] ${video_id} ${error.message} jobId=${job_id}`);
     transcriptJobs.markError(job_id, error.message);
 
   } finally {

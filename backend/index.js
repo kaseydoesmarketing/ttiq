@@ -2,6 +2,10 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import authRoutes from './routes/auth.js';
+import billingRoutes from './routes/billing.js';
+import newsletterRoutes from './routes/newsletter.js';
+import adminRoutes from './routes/admin.js';
+import userRoutes from './routes/user.js';
 import settingsRoutes from './routes/settings.js';
 import generateRoutes from './routes/generate.js';
 
@@ -11,11 +15,23 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middleware
+// Middleware - CORS with specific origins
 app.use(cors({
-  origin: process.env.FRONTEND_URL || '*',
+  origin: [
+    'https://titleiq.tightslice.com',
+    'http://localhost:5173',
+    'http://localhost:3000',
+    process.env.FRONTEND_URL
+  ].filter(Boolean),
   credentials: true
 }));
+
+// Stripe webhook needs raw body - handle before express.json()
+app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), (req, res, next) => {
+  req.rawBody = req.body;
+  next();
+});
+
 app.use(express.json({ limit: '10mb' }));
 
 // Health check
@@ -25,6 +41,10 @@ app.get('/health', (req, res) => {
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/billing', billingRoutes);
+app.use('/api/newsletter', newsletterRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/user', userRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api', generateRoutes);
 

@@ -1,0 +1,299 @@
+import { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { userApi } from '../utils/api';
+import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+
+const Dashboard = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [usage, setUsage] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [adminMetrics, setAdminMetrics] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [copiedId, setCopiedId] = useState(null);
+
+  useEffect(() => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    fetchDashboardData();
+  }, [user, navigate]);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      const [usageData, historyData] = await Promise.all([
+        userApi.getUsage(),
+        userApi.getHistory()
+      ]);
+
+      setUsage(usageData.usage);
+      setHistory(historyData.generations || []);
+
+      // Fetch admin metrics if user is admin
+      if (user?.role === 'admin') {
+        const metricsData = await userApi.getAdminMetrics();
+        setAdminMetrics(metricsData.metrics);
+      }
+    } catch (error) {
+      console.error('Failed to load dashboard:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const copyToClipboard = (text, id) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const copyAllTitles = (generation) => {
+    const text = generation.titles.map((t, i) => `${i + 1}. ${t}`).join('\n') +
+      `\n\nGenerated with ${generation.provider || 'AI'} via TitleIQ by TightSlice`;
+    copyToClipboard(text, `all-${generation.id}`);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+        <div className="text-white text-xl">Loading dashboard...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 py-12 px-4">
+      <div className="max-w-6xl mx-auto">
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8"
+        >
+          <h1 className="text-4xl font-bold text-white mb-2">
+            Command Center
+          </h1>
+          <p className="text-purple-200">
+            Welcome back, {user?.email}
+          </p>
+        </motion.div>
+
+        {/* Plan & Usage Card */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 mb-6 border border-white/20"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-2xl font-bold text-white">
+                {usage?.plan === 'trial' && 'Trial Plan'}
+                {usage?.plan === 'creator' && 'Creator Plan'}
+                {usage?.plan === 'creator_pro' && 'Creator Pro Plan'}
+                {usage?.billing_status === 'lifetime' && ' ∞'}
+              </h2>
+              <p className="text-purple-200 text-sm">
+                {usage?.billing_status === 'lifetime' ? 'Unlimited access forever' :
+                 usage?.plan === 'trial' ? 'Upgrade to unlock more power' :
+                 'Full access to premium features'}
+              </p>
+            </div>
+            {usage?.plan === 'trial' && (
+              <button
+                onClick={() => navigate('/pricing')}
+                className="px-6 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-semibold hover:from-purple-600 hover:to-pink-600 transition"
+              >
+                Upgrade Now
+              </button>
+            )}
+          </div>
+
+          {/* Usage Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-black/20 rounded-lg p-4">
+              <div className="text-purple-200 text-sm mb-1">Today's Usage</div>
+              <div className="text-3xl font-bold text-white">
+                {usage?.billing_status === 'lifetime' ? '∞' :
+                 `${usage?.used || 0} / ${usage?.limit || 0}`}
+              </div>
+              <div className="text-purple-300 text-xs mt-1">
+                {usage?.billing_status === 'lifetime' ? 'Unlimited generations' : 'Generations today'}
+              </div>
+            </div>
+
+            <div className="bg-black/20 rounded-lg p-4">
+              <div className="text-purple-200 text-sm mb-1">Total Generations</div>
+              <div className="text-3xl font-bold text-white">
+                {history.length}
+              </div>
+              <div className="text-purple-300 text-xs mt-1">All time</div>
+            </div>
+
+            <div className="bg-black/20 rounded-lg p-4">
+              <div className="text-purple-200 text-sm mb-1">Current Provider</div>
+              <div className="text-2xl font-bold text-white capitalize">
+                {user?.model_provider || 'OpenAI'}
+              </div>
+              <button
+                onClick={() => navigate('/settings')}
+                className="text-purple-300 text-xs mt-1 hover:text-purple-100 transition"
+              >
+                Change provider →
+              </button>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Admin Metrics (if admin) */}
+        {user?.role === 'admin' && adminMetrics && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="bg-gradient-to-r from-orange-500/20 to-red-500/20 backdrop-blur-lg rounded-2xl p-6 mb-6 border border-orange-500/30"
+          >
+            <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+              <span className="text-2xl">👑</span>
+              Admin Command Center
+            </h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              <div className="bg-black/20 rounded-lg p-4">
+                <div className="text-orange-200 text-xs mb-1">Total Users</div>
+                <div className="text-2xl font-bold text-white">{adminMetrics.totalUsers}</div>
+              </div>
+              <div className="bg-black/20 rounded-lg p-4">
+                <div className="text-orange-200 text-xs mb-1">Active Today</div>
+                <div className="text-2xl font-bold text-white">{adminMetrics.activeUsers}</div>
+              </div>
+              <div className="bg-black/20 rounded-lg p-4">
+                <div className="text-orange-200 text-xs mb-1">Signups 24h</div>
+                <div className="text-2xl font-bold text-white">{adminMetrics.signupsLast24h}</div>
+              </div>
+              <div className="bg-black/20 rounded-lg p-4">
+                <div className="text-orange-200 text-xs mb-1">Requests Today</div>
+                <div className="text-2xl font-bold text-white">{adminMetrics.titleRequestsToday}</div>
+              </div>
+              <div className="bg-black/20 rounded-lg p-4">
+                <div className="text-orange-200 text-xs mb-1">Paying Users</div>
+                <div className="text-2xl font-bold text-white">{adminMetrics.payingUsers}</div>
+              </div>
+              <div className="bg-black/20 rounded-lg p-4">
+                <div className="text-orange-200 text-xs mb-1">Newsletter</div>
+                <div className="text-2xl font-bold text-white">{adminMetrics.newsletterSubscribers}</div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Generation History */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20"
+        >
+          <h2 className="text-2xl font-bold text-white mb-4">Recent Generations</h2>
+
+          {history.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-purple-200 mb-4">No generations yet</p>
+              <button
+                onClick={() => navigate('/app')}
+                className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-semibold hover:from-purple-600 hover:to-pink-600 transition"
+              >
+                Generate Your First Titles
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {history.slice(0, 10).map((gen) => (
+                <div
+                  key={gen.id}
+                  className="bg-black/20 rounded-lg p-4 border border-white/10"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <div className="text-sm text-purple-200 mb-1">
+                        {new Date(gen.created_at).toLocaleDateString()} at {new Date(gen.created_at).toLocaleTimeString()}
+                      </div>
+                      <div className="text-xs text-purple-300">
+                        Provider: {gen.provider || 'AI'} • {gen.titles?.length || 0} titles generated
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => copyAllTitles(gen)}
+                      className="px-3 py-1 bg-purple-500/20 text-purple-200 rounded text-sm hover:bg-purple-500/30 transition"
+                    >
+                      {copiedId === `all-${gen.id}` ? '✓ Copied' : 'Copy All'}
+                    </button>
+                  </div>
+
+                  {/* Titles */}
+                  <div className="space-y-2 mb-3">
+                    {gen.titles?.slice(0, 3).map((title, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-start justify-between gap-2 bg-white/5 rounded p-2"
+                      >
+                        <div className="text-white text-sm flex-1">{title}</div>
+                        <button
+                          onClick={() => copyToClipboard(title, `${gen.id}-${idx}`)}
+                          className="text-purple-300 hover:text-purple-100 text-xs"
+                        >
+                          {copiedId === `${gen.id}-${idx}` ? '✓' : 'Copy'}
+                        </button>
+                      </div>
+                    ))}
+                    {gen.titles?.length > 3 && (
+                      <div className="text-purple-300 text-xs">
+                        +{gen.titles.length - 3} more titles
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Description Preview */}
+                  {gen.description && (
+                    <div className="text-sm text-purple-200 line-clamp-2">
+                      {gen.description.substring(0, 200)}...
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </motion.div>
+
+        {/* TightSlice CTA */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.4 }}
+          className="mt-8 text-center"
+        >
+          <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 backdrop-blur-lg rounded-2xl p-6 border border-green-500/30">
+            <h3 className="text-xl font-bold text-white mb-2">
+              Want 1:1 YouTube Growth Coaching?
+            </h3>
+            <p className="text-green-100 mb-4">
+              Get personalized strategy sessions with the TightSlice team
+            </p>
+            <a
+              href="https://tightslice.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg font-semibold hover:from-green-600 hover:to-emerald-600 transition"
+            >
+              Learn More at TightSlice.com
+            </a>
+          </div>
+        </motion.div>
+      </div>
+    </div>
+  );
+};
+
+export default Dashboard;

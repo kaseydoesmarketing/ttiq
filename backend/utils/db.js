@@ -38,6 +38,33 @@ function initializeDatabase() {
 
     CREATE INDEX IF NOT EXISTS idx_generations_user_id ON generations(user_id);
     CREATE INDEX IF NOT EXISTS idx_generations_created_at ON generations(created_at);
+
+    CREATE TABLE IF NOT EXISTS transcripts (
+      video_id TEXT PRIMARY KEY,
+      transcript TEXT NOT NULL,
+      source TEXT NOT NULL CHECK(source IN ('captions', 'asr', 'manual')),
+      duration_sec INTEGER,
+      created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_transcripts_created_at ON transcripts(created_at);
+    CREATE INDEX IF NOT EXISTS idx_transcripts_source ON transcripts(source);
+
+    CREATE TABLE IF NOT EXISTS transcript_jobs (
+      job_id TEXT PRIMARY KEY,
+      video_id TEXT NOT NULL,
+      status TEXT NOT NULL CHECK(status IN ('PENDING','PROCESSING','DONE','ERROR')),
+      transcript TEXT,
+      source TEXT CHECK(source IN ('captions','asr')),
+      duration_sec INTEGER,
+      error TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_transcript_jobs_status ON transcript_jobs(status);
+    CREATE INDEX IF NOT EXISTS idx_transcript_jobs_video ON transcript_jobs(video_id);
+    CREATE INDEX IF NOT EXISTS idx_transcript_jobs_created ON transcript_jobs(created_at);
   `);
 }
 
@@ -107,6 +134,75 @@ export const generationDb = {
       LIMIT ?
     `);
     return stmt.all(userId, limit);
+  }
+};
+
+// Transcript jobs operations (for async ASR processing)
+export const transcriptJobs = {
+  createPending: (jobId, videoId) => {
+    const now = Date.now();
+    const stmt = db.prepare(`
+      INSERT INTO transcript_jobs (job_id, video_id, status, created_at, updated_at)
+      VALUES (?, ?, 'PENDING', ?, ?)
+    `);
+    return stmt.run(jobId, videoId, now, now);
+  },
+
+  markProcessing: (jobId) => {
+    const stmt = db.prepare(`
+      UPDATE transcript_jobs
+      SET status = 'PROCESSING', updated_at = ?
+      WHERE job_id = ?
+    `);
+    return stmt.run(Date.now(), jobId);
+  },
+
+  markDone: (jobId, transcript, source, durationSec) => {
+    const stmt = db.prepare(`
+      UPDATE transcript_jobs
+      SET status = 'DONE',
+          transcript = ?,
+          source = ?,
+          duration_sec = ?,
+          updated_at = ?
+      WHERE job_id = ?
+    `);
+    return stmt.run(transcript, source, durationSec || null, Date.now(), jobId);
+  },
+
+  markError: (jobId, errorMessage) => {
+    const stmt = db.prepare(`
+      UPDATE transcript_jobs
+      SET status = 'ERROR',
+          error = ?,
+          updated_at = ?
+      WHERE job_id = ?
+    `);
+    return stmt.run(errorMessage, Date.now(), jobId);
+  },
+
+  get: (jobId) => {
+    const stmt = db.prepare('SELECT * FROM transcript_jobs WHERE job_id = ?');
+    return stmt.get(jobId);
+  },
+
+  getNextPending: () => {
+    const stmt = db.prepare(`
+      SELECT * FROM transcript_jobs
+      WHERE status = 'PENDING'
+      ORDER BY created_at ASC
+      LIMIT 1
+    `);
+    return stmt.get();
+  },
+
+  cleanupOld: (maxAgeMs = 24 * 60 * 60 * 1000) => {
+    const cutoff = Date.now() - maxAgeMs;
+    const stmt = db.prepare(`
+      DELETE FROM transcript_jobs
+      WHERE created_at < ?
+    `);
+    return stmt.run(cutoff);
   }
 };
 

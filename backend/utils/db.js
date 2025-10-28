@@ -270,6 +270,42 @@ export const userDb = {
     const stmt = db.prepare('SELECT billing_status, role FROM users WHERE id = ?');
     const user = stmt.get(userId);
     return user?.billing_status === 'lifetime' || user?.role === 'admin';
+  },
+
+  updateResetToken: (userId, token, expires) => {
+    const stmt = db.prepare(`
+      UPDATE users
+      SET password_reset_token = ?, password_reset_expires = ?, updated_at = ?
+      WHERE id = ?
+    `);
+    return stmt.run(token, expires, Date.now(), userId);
+  },
+
+  updatePassword: (userId, passwordHash) => {
+    const stmt = db.prepare(`
+      UPDATE users
+      SET password_hash = ?, updated_at = ?
+      WHERE id = ?
+    `);
+    return stmt.run(passwordHash, Date.now(), userId);
+  },
+
+  clearResetToken: (userId) => {
+    const stmt = db.prepare(`
+      UPDATE users
+      SET password_reset_token = NULL, password_reset_expires = NULL, updated_at = ?
+      WHERE id = ?
+    `);
+    return stmt.run(Date.now(), userId);
+  },
+
+  incrementPasswordVersion: (userId) => {
+    const stmt = db.prepare(`
+      UPDATE users
+      SET password_version = COALESCE(password_version, 0) + 1, updated_at = ?
+      WHERE id = ?
+    `);
+    return stmt.run(Date.now(), userId);
   }
 };
 

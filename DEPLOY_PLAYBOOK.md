@@ -537,6 +537,302 @@ rsync -avz /var/www/titleiq/frontend_backup/ \
 
 ---
 
+## 🔐 PASSWORD RESET SYSTEM RUNBOOK
+
+### Overview
+The password reset system provides secure, production-grade password recovery with:
+- Email-based 6-digit codes (15-minute expiry)
+- Strict password policies (10+ chars, mixed case, numbers, special chars)
+- Rate limiting (5 requests/15min per IP, 5 requests/hour per email)
+- Session invalidation on password change
+- Zero token leakage in production logs
+
+### Email Provider Setup
+
+#### Option 1: Resend (Recommended)
+
+1. **Create Resend Account**
+   ```bash
+   # Visit: https://resend.com/signup
+   ```
+
+2. **Get API Key**
+   ```bash
+   # Dashboard > API Keys > Create API Key
+   # Copy the key (starts with re_...)
+   ```
+
+3. **Configure Environment**
+   ```bash
+   ssh root@automations.tightslice.com
+   cd /var/www/titleiq/backend
+
+   # Add to .env
+   echo 'MAIL_PROVIDER=resend' >> .env
+   echo 'RESEND_API_KEY=re_your_actual_key_here' >> .env
+   echo 'MAIL_FROM="TitleIQ <no-reply@tightslice.com>"' >> .env
+
+   # Restart backend
+   pm2 restart titleiq-backend
+   ```
+
+4. **Verify Domain (Optional but Recommended)**
+   ```
+   # Resend Dashboard > Domains > Add Domain
+   # Add DNS records as instructed
+   # This improves deliverability
+   ```
+
+#### Option 2: SendGrid
+
+1. **Create SendGrid Account**
+   ```bash
+   # Visit: https://signup.sendgrid.com/
+   ```
+
+2. **Create API Key**
+   ```bash
+   # Settings > API Keys > Create API Key
+   # Full Access permissions
+   ```
+
+3. **Configure Environment**
+   ```bash
+   ssh root@automations.tightslice.com
+   cd /var/www/titleiq/backend
+
+   echo 'MAIL_PROVIDER=sendgrid' >> .env
+   echo 'SENDGRID_API_KEY=SG.your_actual_key_here' >> .env
+   echo 'MAIL_FROM="TitleIQ <no-reply@tightslice.com>"' >> .env
+
+   pm2 restart titleiq-backend
+   ```
+
+### Testing Password Reset
+
+**Quick Test:**
+```bash
+# Run automated test script
+cd /Users/kvimedia/titleiq
+./test-reset-flow.sh
+```
+
+**Manual Test:**
+```bash
+# 1. Request reset
+curl -X POST https://titleiq.tightslice.com/api/auth/forgot-password \
+  -H "Content-Type: application/json" \
+  -d '{"email":"your-test@email.com"}'
+
+# 2. Check email for 6-digit code
+
+# 3. Reset password
+curl -X POST https://titleiq.tightslice.com/api/auth/reset-password \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email":"your-test@email.com",
+    "token":"123456",
+    "newPassword":"SecurePassword123!"
+  }'
+
+# 4. Login with new password
+curl -X POST https://titleiq.tightslice.com/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"your-test@email.com","password":"SecurePassword123!"}'
+```
+
+### Troubleshooting
+
+#### Issue: No Email Received
+```bash
+# Check email service configuration
+ssh root@automations.tightslice.com
+cat /var/www/titleiq/backend/.env | grep MAIL
+
+# Check backend logs
+pm2 logs titleiq-backend --lines 100 | grep -i "mail\|reset"
+
+# Common fixes:
+# 1. Verify API key is correct
+# 2. Check spam folder
+# 3. Verify domain DNS records (if using custom domain)
+# 4. Check Resend/SendGrid dashboard for bounces
+```
+
+#### Issue: Rate Limited
+```bash
+# Check rate limit status
+ssh root@automations.tightslice.com
+pm2 logs titleiq-backend --lines 50 | grep "RATE_LIMIT"
+
+# Rate limits reset after:
+# - 15 minutes for IP-based limits
+# - 1 hour for email-based limits
+
+# To manually clear (emergency only):
+pm2 restart titleiq-backend  # Clears in-memory rate limit store
+```
+
+#### Issue: Password Rejected
+```bash
+# Password must meet ALL requirements:
+# - At least 10 characters
+# - One uppercase letter (A-Z)
+# - One lowercase letter (a-z)
+# - One number (0-9)
+# - One special character (!@#$%^&*)
+# - No common patterns (password123, qwerty, etc.)
+
+# Test password strength locally:
+node -e "
+const pwd = 'YourPassword123!';
+console.log('Length:', pwd.length >= 10);
+console.log('Upper:', /[A-Z]/.test(pwd));
+console.log('Lower:', /[a-z]/.test(pwd));
+console.log('Number:', /[0-9]/.test(pwd));
+console.log('Special:', /[^a-zA-Z0-9]/.test(pwd));
+"
+```
+
+#### Issue: Token Expired
+```bash
+# Tokens expire after 15 minutes
+# User must request a new code
+
+# Check token expiry in database:
+ssh root@automations.tightslice.com
+sqlite3 /var/www/titleiq/backend/database/titleiq.db \
+  "SELECT email, password_reset_expires,
+   datetime(password_reset_expires/1000, 'unixepoch') as expires_at
+   FROM users WHERE password_reset_expires IS NOT NULL;"
+```
+
+#### Issue: Sessions Not Invalidated
+```bash
+# Verify password_version column exists
+sqlite3 /var/www/titleiq/backend/database/titleiq.db \
+  "PRAGMA table_info(users);" | grep password_version
+
+# If missing, run migration:
+ssh root@automations.tightslice.com
+cd /var/www/titleiq/backend
+node migrations/add-password-version.mjs
+pm2 restart titleiq-backend
+```
+
+### Rotating Email API Keys
+
+```bash
+# 1. Generate new API key in provider dashboard
+
+# 2. Update production environment
+ssh root@automations.tightslice.com
+cd /var/www/titleiq/backend
+
+# Edit .env
+nano .env
+# Update RESEND_API_KEY or SENDGRID_API_KEY
+
+# 3. Restart backend
+pm2 restart titleiq-backend
+
+# 4. Verify
+pm2 logs titleiq-backend --lines 20
+
+# 5. Test password reset flow
+curl -X POST https://titleiq.tightslice.com/api/auth/forgot-password \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com"}'
+
+# 6. Revoke old key in provider dashboard
+```
+
+### Monitoring
+
+**Key Metrics to Watch:**
+```bash
+# Email delivery rate
+pm2 logs titleiq-backend | grep "MAILER.*sent"
+
+# Rate limit hits (potential attack)
+pm2 logs titleiq-backend | grep "RATE_LIMIT.*exceeded"
+
+# Password reset completions
+pm2 logs titleiq-backend | grep "Password reset successful"
+
+# Session invalidations
+pm2 logs titleiq-backend | grep "password_changed"
+
+# Failed attempts
+pm2 logs titleiq-backend | grep "Invalid or expired reset token"
+```
+
+**Set Up Alerts (Optional):**
+```bash
+# Using logwatch or similar:
+# Alert on:
+# - Spike in rate limit hits (>50/hour)
+# - Email delivery failures (>10/day)
+# - Repeated invalid token attempts (>20/hour)
+```
+
+### Security Notes
+
+1. **No Token Leakage**
+   - Tokens never logged in production (NODE_ENV=production)
+   - Only masked emails in logs (te**@example.com)
+
+2. **Timing Attack Prevention**
+   - All responses include 100-300ms jitter
+   - Same response for existing/non-existing emails
+
+3. **Brute Force Protection**
+   - Dual rate limiting (IP + email)
+   - Single-use tokens
+   - 15-minute expiry
+
+4. **Session Security**
+   - Old tokens invalidated on password change
+   - User must re-login after reset
+
+### Deployment Checklist
+
+Before deploying password reset to production:
+
+- [ ] Email service configured (RESEND_API_KEY or SENDGRID_API_KEY)
+- [ ] NODE_ENV=production set
+- [ ] Run migration: `node migrations/add-password-version.mjs`
+- [ ] Test with real email account
+- [ ] Verify no tokens in logs: `pm2 logs titleiq-backend | grep -i token`
+- [ ] Test rate limiting (make 6 rapid requests)
+- [ ] Test session invalidation (reset password with active session)
+- [ ] Test weak password rejection
+- [ ] Frontend shows password requirements
+- [ ] Confirmation email received
+- [ ] Update team documentation
+
+### Quick Reference
+
+**Files Modified:**
+- `backend/routes/auth.js` - Reset endpoints
+- `backend/middleware/rateLimit.js` - Sensitive rate limiting
+- `backend/middleware/auth.js` - Session validation
+- `backend/utils/mailer.js` - Email service
+- `backend/utils/passwordPolicy.js` - Password validation
+- `backend/utils/db.js` - Database methods
+- `frontend/src/pages/ForgotPassword.jsx` - Request reset UI
+- `frontend/src/pages/ResetPassword.jsx` - Complete reset UI
+
+**Migrations:**
+- `backend/migrations/add-password-reset.mjs` - Reset token columns
+- `backend/migrations/add-password-version.mjs` - Session invalidation
+
+**Documentation:**
+- `RESET_FLOW_CHECKLIST.md` - Complete testing guide
+- `test-reset-flow.sh` - Automated test script
+
+---
+
 ## 📞 SUPPORT CONTACTS
 
 - **Technical Issues:** Check GitHub Issues

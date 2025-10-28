@@ -6,6 +6,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-jwt-secret-change-this-in-pro
 /**
  * JWT Authentication Middleware
  * Attaches user to req.user if valid token provided
+ * Also validates password_version to invalidate tokens after password reset
  */
 export function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
@@ -21,6 +22,17 @@ export function authenticateToken(req, res, next) {
 
     if (!user) {
       return res.status(401).json({ error: 'Invalid token' });
+    }
+
+    // Check if password has been changed since token was issued
+    const currentPasswordVersion = user.password_version || 1;
+    const tokenPasswordVersion = decoded.passwordVersion || 1;
+
+    if (tokenPasswordVersion !== currentPasswordVersion) {
+      return res.status(401).json({
+        error: 'Session expired. Please log in again.',
+        reason: 'password_changed'
+      });
     }
 
     req.user = user;
@@ -70,7 +82,18 @@ export function requireAdmin(req, res, next) {
 
 /**
  * Generate JWT for user
+ * Includes password_version for session invalidation on password change
  */
 export function generateToken(userId) {
-  return jwt.sign({ userId }, JWT_SECRET, { expiresIn: '30d' });
+  const user = userDb.findById(userId);
+  const passwordVersion = user?.password_version || 1;
+
+  return jwt.sign(
+    {
+      userId,
+      passwordVersion
+    },
+    JWT_SECRET,
+    { expiresIn: '30d' }
+  );
 }

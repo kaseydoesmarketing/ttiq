@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import dotenv from 'dotenv';
 import authRoutes from './routes/auth.js';
 import billingRoutes from './routes/billing.js';
@@ -14,6 +15,20 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// Trust proxy for accurate IP addresses behind Nginx
+app.set('trust proxy', 1);
+
+// Security middleware - Helmet with HSTS
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  contentSecurityPolicy: false, // Disable CSP to avoid breaking SPA (configure later if needed)
+  hsts: {
+    maxAge: 31536000, // 1 year
+    includeSubDomains: false, // Only enable if ALL subdomains are HTTPS
+    preload: false // Only enable after confirming all subdomains ready
+  }
+}));
 
 // Middleware - CORS with specific origins
 app.use(cors({
@@ -34,9 +49,22 @@ app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), (req
 
 app.use(express.json({ limit: '10mb' }));
 
-// Health check
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'TitleIQ API' });
+// Health check (minimal response in production)
+app.get('/api/health', (req, res) => {
+  // In production, only return basic status unless internal health key is present
+  if (process.env.NODE_ENV === 'production' &&
+      req.get('X-Internal-Health') !== process.env.HEALTH_SECRET) {
+    return res.json({ ok: true });
+  }
+
+  // Detailed response for development or internal monitoring
+  res.json({
+    ok: true,
+    service: 'TitleIQ API',
+    env: process.env.NODE_ENV || 'development',
+    mailProvider: process.env.MAIL_PROVIDER || 'none',
+    time: new Date().toISOString()
+  });
 });
 
 // Routes

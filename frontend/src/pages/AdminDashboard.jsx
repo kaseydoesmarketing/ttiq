@@ -22,7 +22,7 @@ const AdminDashboard = () => {
   const [toast, setToast] = useState(null);
 
   const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://titleiq.tightslice.com';
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('titleiq_token');
 
   // Check query param for viz mode
   const urlParams = new URLSearchParams(window.location.search);

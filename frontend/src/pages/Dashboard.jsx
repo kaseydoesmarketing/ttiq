@@ -67,18 +67,46 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 py-12 px-4">
       <div className="max-w-6xl mx-auto">
-        {/* Header */}
+        {/* Header with Navigation */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
-          <h1 className="text-4xl font-bold text-white mb-2">
-            Command Center
-          </h1>
-          <p className="text-purple-200">
-            Welcome back, {user?.email}
-          </p>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-4xl font-bold text-white mb-2">
+                Command Center
+              </h1>
+              <p className="text-purple-200">
+                Welcome back, {user?.email}
+              </p>
+            </div>
+
+            {/* Quick Navigation Menu */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => navigate('/app')}
+                className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-lg font-semibold transition shadow-lg"
+              >
+                Generate Titles
+              </button>
+              <button
+                onClick={() => navigate('/settings')}
+                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg font-medium transition border border-white/20"
+              >
+                Settings
+              </button>
+              {user?.role === 'admin' && (
+                <button
+                  onClick={() => navigate('/admin')}
+                  className="px-4 py-2 bg-orange-500/20 hover:bg-orange-500/30 text-orange-200 rounded-lg font-medium transition border border-orange-500/30"
+                >
+                  👑 Admin
+                </button>
+              )}
+            </div>
+          </div>
         </motion.div>
 
         {/* Plan & Usage Card */}

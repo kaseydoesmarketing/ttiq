@@ -3,17 +3,17 @@ import axios from 'axios';
 /**
  * Generate titles and description using LLM
  * @param {string} transcript - Video transcript
- * @param {object} options - { userApiKey: string, provider: 'groq'|'openai'|'claude' }
+ * @param {object} options - { userApiKey: string, provider: 'groq'|'openai'|'claude', userContext: object }
  * @returns {Promise<{titles: string[], description: string, themes: string[]}>}
  */
 export async function generateTitlesAndDescription(transcript, options = {}) {
-  const { userApiKey, provider = 'groq' } = options;
+  const { userApiKey, provider = 'groq', userContext = {} } = options;
 
   // Extract themes first (simple keyword extraction)
   const themes = extractThemes(transcript);
 
-  // Build the prompt
-  const prompt = buildPrompt(transcript, themes);
+  // Build the prompt with user context
+  const prompt = buildPrompt(transcript, themes, userContext);
 
   // Call appropriate LLM
   let response;
@@ -31,7 +31,63 @@ export async function generateTitlesAndDescription(transcript, options = {}) {
     response = await callGroq(prompt);
   }
 
-  return parseResponse(response, themes);
+  return parseResponse(response, themes, userContext);
+}
+
+/**
+ * Add personalized social links and hashtags to description
+ */
+function personalizeDescription(description, userContext) {
+  if (!userContext.social_links && !userContext.hashtags) {
+    return description;
+  }
+
+  let personalized = description;
+
+  // Add social links section
+  if (userContext.social_links && Object.keys(userContext.social_links).length > 0) {
+    personalized += '\n\n🔗 Connect with me:\n';
+
+    if (userContext.social_links.youtube) {
+      personalized += `📺 YouTube: ${userContext.social_links.youtube}\n`;
+    }
+    if (userContext.social_links.instagram) {
+      personalized += `📸 Instagram: ${userContext.social_links.instagram}\n`;
+    }
+    if (userContext.social_links.tiktok) {
+      personalized += `🎵 TikTok: ${userContext.social_links.tiktok}\n`;
+    }
+    if (userContext.social_links.twitter) {
+      personalized += `🐦 Twitter: ${userContext.social_links.twitter}\n`;
+    }
+    if (userContext.social_links.linkedin) {
+      personalized += `💼 LinkedIn: ${userContext.social_links.linkedin}\n`;
+    }
+    if (userContext.social_links.facebook) {
+      personalized += `👥 Facebook: ${userContext.social_links.facebook}\n`;
+    }
+  }
+
+  // Add hashtags
+  if (userContext.hashtags && userContext.hashtags.length > 0) {
+    personalized += '\n' + userContext.hashtags.map(tag => tag.startsWith('#') ? tag : '#' + tag).join(' ');
+  }
+
+  // Add CTA based on primary goal
+  if (userContext.primary_goal) {
+    personalized += '\n\n';
+    if (userContext.primary_goal.toLowerCase().includes('growth')) {
+      personalized += `🚀 Subscribe for more ${userContext.niche || 'content'}!`;
+    } else if (userContext.primary_goal.toLowerCase().includes('engagement')) {
+      personalized += `💬 Drop a comment and let me know what you think!`;
+    } else if (userContext.primary_goal.toLowerCase().includes('monetization')) {
+      personalized += `👍 Like and subscribe to support the channel!`;
+    } else {
+      personalized += `🔔 Hit subscribe and turn on notifications!`;
+    }
+  }
+
+  return personalized;
 }
 
 /**
@@ -60,16 +116,39 @@ function extractThemes(transcript) {
 }
 
 /**
- * Build the LLM prompt for title generation
+ * Build the LLM prompt for title generation with 2026 viral factors
  */
-function buildPrompt(transcript, themes) {
-  return `You are an elite YouTube title strategist. Your titles weaponize curiosity and contrast to force clicks.
+function buildPrompt(transcript, themes, userContext = {}) {
+  const contextInfo = userContext.niche ? `\nCREATOR NICHE: ${userContext.niche}` : '';
+  const competitorInfo = userContext.competitors ? `\nCOMPETITORS TO STUDY: ${userContext.competitors.join(', ')}` : '';
+  const brandVoice = userContext.brand_voice ? `\nBRAND VOICE: ${userContext.brand_voice}` : '';
+  const targetKeywords = userContext.keywords ? `\nTARGET KEYWORDS: ${userContext.keywords.join(', ')}` : '';
+
+  return `You are an elite YouTube title strategist using 2026 viral optimization techniques. Your titles achieve 15%+ CTR (top 1% performance).
 
 TRANSCRIPT:
 ${transcript.substring(0, 3000)} ${transcript.length > 3000 ? '...(truncated)' : ''}
 
 CORE THEMES:
-${themes.join(', ')}
+${themes.join(', ')}${contextInfo}${competitorInfo}${brandVoice}${targetKeywords}
+
+2026 VIRAL FACTORS (CRITICAL):
+1. 4%+ CTR in first 24 hours = 3x more impressions
+2. 7%+ CTR = cross-vertical recommendations
+3. 15%+ CTR = viral distribution (your target)
+4. Optimal length: 40-60 characters (50-60 for algorithm pickup)
+5. Front-load primary keywords in first 40 characters (mobile truncation)
+6. Brackets increase CTR by 38% when used appropriately
+7. Algorithm now penalizes misleading titles through AI content analysis
+8. High-arousal emotions (awe, anger, anxiety) drive 267% more shares
+9. Odd numbers (3, 5, 7) outperform even numbers
+10. Specific timeframes ("30 days") outperform vague ("quickly")
+
+POWER WORDS FOR 2026:
+- Curiosity: Secret, Hidden, Surprising, Revealed, Finally
+- Authority: Proven, Research-backed, Expert-approved
+- Emotional: Amazing, Shocking, Critical, Game-changing
+- Time-sensitive: Now, Today, Breaking, Before it's too late
 
 REQUIREMENTS:
 1. Generate exactly 10 titles
@@ -84,7 +163,14 @@ REQUIREMENTS:
 7. Include status-flex language where appropriate ("they don't want you to know," "elite unlock," "superiority")
 8. Ensure titles accurately represent content
 
-TITLE FORMULAS (mix and match):
+PROVEN VIRAL TITLE PATTERNS (use these):
+1. Experience Documentation: "I [Action] for [Time Period] and [Unexpected Result]"
+2. Curiosity Gap + Authority: "[Authoritative Figure] Don't Want You to Know This" (23% higher engagement)
+3. Question-Based Cliff-Hanger: "What Happens When [Unexpected Scenario]?"
+4. Transformation/Before-After: "How I [Achieved Result] in [Specific Timeframe]"
+5. Four-Element Formula: Urgency + Value + Uniqueness + Authority
+
+CLASSIC FORMULAS (mix with patterns above):
 - Shock + Keyword + Outcome
 - Status Game Flip
 - Villain/Expose + Contrast
@@ -97,10 +183,11 @@ ALSO GENERATE:
 
 **DESCRIPTION (500-800 characters):**
 - 2X longer than typical YouTube description
-- SEO-optimized for 2026 discoverability
+- SEO-optimized for 2026 discoverability with target keywords${targetKeywords ? ' including: ' + userContext.keywords.join(', ') : ''}
 - High-intent keywords relevant to transcript topic
-- Natural call to action to subscribe/engage
-- Include one self-reference: "Optimized with TitleIQ by TightSlice"
+- Match brand voice:${brandVoice ? ' ' + userContext.brand_voice : ' authentic and engaging'}
+- Natural call to action aligned with creator goal${userContext.primary_goal ? ' (' + userContext.primary_goal + ')' : ''}
+- Include one self-reference: "Optimized with TitleIQ by TightSlice"${userContext.social_links ? '\n- END with social media section (provided separately in user context)' : ''}
 
 **TAGS (comma-separated, <500 chars total):**
 - Mix of broad, niche, and long-tail keywords
@@ -130,7 +217,7 @@ TAGS:
 /**
  * Parse LLM response into structured data
  */
-function parseResponse(response, themes) {
+function parseResponse(response, themes, userContext = {}) {
   const lines = response.split('\n').filter(line => line.trim());
 
   const titles = [];
@@ -179,9 +266,12 @@ function parseResponse(response, themes) {
   description = description.trim().substring(0, 800);
   tags = tags.trim().substring(0, 500);
 
+  // Personalize description with user's social links and hashtags
+  const personalizedDescription = personalizeDescription(description, userContext);
+
   return {
     titles: titles.slice(0, 10),
-    description,
+    description: personalizedDescription,
     tags,
     themes
   };

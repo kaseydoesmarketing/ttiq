@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
@@ -39,6 +40,15 @@ const OnboardingWizard = ({ onComplete, relaunch = false, onSkip }) => {
   const [loading, setLoading] = useState(false);
 
   const totalSteps = 12;
+
+  // Lock body scroll when onboarding is active
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, []);
 
   const updateField = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -405,20 +415,20 @@ const OnboardingWizard = ({ onComplete, relaunch = false, onSkip }) => {
     }
   };
 
-  return (
+  return createPortal(
     <>
       {/* Gray overlay - dims everything behind */}
-      <div className="fixed inset-0 z-[60] bg-gray-900/95 backdrop-blur-sm" />
+      <div className="fixed inset-0 z-[9998] bg-gray-900/95 backdrop-blur-sm" />
 
       {/* Onboarding content container */}
-      <div className="fixed inset-0 z-[61] flex items-center justify-center px-4 py-8 overflow-y-auto">
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4 py-8 overflow-y-auto">
         {/* Large X Button - Top Right Corner */}
         <motion.button
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.2 }}
           onClick={handleSkip}
-          className="fixed top-6 right-6 z-[62] w-12 h-12 bg-gray-800 hover:bg-gray-700 rounded-full flex items-center justify-center text-white text-2xl font-light border border-gray-600 transition-all hover:scale-110 shadow-xl"
+          className="fixed top-6 right-6 z-[10000] w-12 h-12 bg-gray-800 hover:bg-gray-700 rounded-full flex items-center justify-center text-white text-2xl font-light border border-gray-600 transition-all hover:scale-110 shadow-xl"
           aria-label="Close onboarding"
         >
           ×
@@ -486,7 +496,8 @@ const OnboardingWizard = ({ onComplete, relaunch = false, onSkip }) => {
           </div>
         </motion.div>
       </div>
-    </>
+    </>,
+    document.body
   );
 };
 

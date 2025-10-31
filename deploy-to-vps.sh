@@ -24,20 +24,20 @@ echo "📤 Uploading to VPS..."
 
 # Create deployment package
 tar czf titleiq-deploy.tar.gz \
-  backend/ \
-  frontend/dist/ \
-  README.md \
   --exclude="node_modules" \
   --exclude="backend/database/*.db" \
-  --exclude="*.log"
+  --exclude="*.log" \
+  backend/ \
+  frontend/dist/ \
+  README.md
 
 # Upload to VPS
-sshpass -p "$VPS_PASSWORD" scp -o StrictHostKeyChecking=no \
+scp -i ~/.ssh/tightslice_deploy -o StrictHostKeyChecking=no \
   titleiq-deploy.tar.gz \
   $VPS_USER@$VPS_HOST:/tmp/
 
 # Deploy on VPS
-sshpass -p "$VPS_PASSWORD" ssh -o StrictHostKeyChecking=no \
+ssh -i ~/.ssh/tightslice_deploy -o StrictHostKeyChecking=no \
   $VPS_USER@$VPS_HOST << 'ENDSSH'
 
 set -e

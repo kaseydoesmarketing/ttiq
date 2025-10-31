@@ -6,9 +6,16 @@ import authRoutes from './routes/auth.js';
 import billingRoutes from './routes/billing.js';
 import newsletterRoutes from './routes/newsletter.js';
 import adminRoutes from './routes/admin.js';
+import adminStatsRoutes from './routes/adminStats.js';
+import adminGrantsRoutes from './routes/adminGrants.js';
+import adminLLMUsageRoutes from './routes/adminLLMUsage.js';
+import adminLiveRoutes from './routes/adminLive.js';
 import userRoutes from './routes/user.js';
 import settingsRoutes from './routes/settings.js';
 import generateRoutes from './routes/generate.js';
+import transcriptStartRoutes from './routes/transcriptStart.js';
+import transcriptStatusRoutes from './routes/transcriptStatus.js';
+import onboardingRoutes from './routes/onboarding.js';
 
 // Load environment variables
 dotenv.config();
@@ -72,8 +79,15 @@ app.use('/api/auth', authRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/newsletter', newsletterRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/admin', adminStatsRoutes);
+app.use('/api/admin', adminGrantsRoutes);
+app.use('/api/admin', adminLLMUsageRoutes);
+app.use('/api/admin', adminLiveRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/onboarding', onboardingRoutes);
+app.use('/api/transcript', transcriptStartRoutes);
+app.use('/api/transcript/status', transcriptStatusRoutes);
 app.use('/api', generateRoutes);
 
 // Error handling middleware

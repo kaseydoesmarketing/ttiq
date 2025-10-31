@@ -15,6 +15,12 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isAuthed, setIsAuthed] = useState(false);
+  const [onboardingState, setOnboardingState] = useState({
+    completed: null,
+    step: 0,
+    skipped: false,
+    loading: true
+  });
 
   // Fetch user profile on mount if token exists
   useEffect(() => {
@@ -23,8 +29,36 @@ export const AuthProvider = ({ children }) => {
       fetchUserProfile();
     } else {
       setLoading(false);
+      setOnboardingState(prev => ({ ...prev, loading: false }));
     }
   }, []);
+
+  // Check onboarding status ONCE when user is authenticated
+  useEffect(() => {
+    if (user && onboardingState.completed === null) {
+      checkOnboardingStatus();
+    }
+  }, [user]);
+
+  const checkOnboardingStatus = async () => {
+    try {
+      const token = localStorage.getItem('titleiq_token');
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/onboarding/status`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await response.json();
+
+      setOnboardingState({
+        completed: data.onboardingCompleted || data.completed,
+        step: data.onboardingStep || data.step || 0,
+        skipped: localStorage.getItem('onboarding_skipped') === 'true',
+        loading: false
+      });
+    } catch (err) {
+      console.error('Failed to check onboarding status:', err);
+      setOnboardingState(prev => ({ ...prev, loading: false }));
+    }
+  };
 
   const fetchUserProfile = async () => {
     try {
@@ -45,6 +79,7 @@ export const AuthProvider = ({ children }) => {
       setIsAuthed(false);
     } finally {
       setLoading(false);
+      setOnboardingState(prev => ({ ...prev, loading: false }));
     }
   };
 
@@ -99,6 +134,16 @@ export const AuthProvider = ({ children }) => {
     await fetchUserProfile();
   };
 
+  const skipOnboarding = () => {
+    localStorage.setItem('onboarding_skipped', 'true');
+    setOnboardingState(prev => ({ ...prev, skipped: true }));
+  };
+
+  const completeOnboarding = () => {
+    setOnboardingState(prev => ({ ...prev, completed: true, skipped: false }));
+    localStorage.removeItem('onboarding_skipped');
+  };
+
   const value = {
     user,
     loading,
@@ -107,6 +152,10 @@ export const AuthProvider = ({ children }) => {
     register,
     logout,
     refreshUser,
+    onboardingState,
+    skipOnboarding,
+    completeOnboarding,
+    checkOnboardingStatus,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

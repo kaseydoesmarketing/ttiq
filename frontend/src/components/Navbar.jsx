@@ -1,10 +1,16 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import OnboardingModal from './OnboardingModal';
+import PulseIndicator from './PulseIndicator';
 
 const Navbar = () => {
-  const { isAuthed, user, logout } = useAuth();
+  const { isAuthed, user, logout, onboardingState } = useAuth();
   const location = useLocation();
+  const [showOnboardingModal, setShowOnboardingModal] = useState(false);
+
+  const shouldShowPulse = user && onboardingState.skipped &&
+    !localStorage.getItem('hide_onboarding_pulse');
 
   const isActive = (path) => {
     return location.pathname === path;
@@ -56,14 +62,30 @@ const Navbar = () => {
                 <Link to="/dashboard" className={'text-sm font-medium transition-colors ' + (isActive('/dashboard') ? 'text-white' : 'text-gray-400 hover:text-white')}>
                   Dashboard
                 </Link>
+                <button
+                  onClick={() => {
+                    setShowOnboardingModal(true);
+                    localStorage.setItem('hide_onboarding_pulse', 'true');
+                  }}
+                  className="relative flex items-center gap-2 text-sm font-medium text-gray-400 hover:text-white transition-colors"
+                >
+                  Onboarding
+                  {shouldShowPulse && <PulseIndicator />}
+                </button>
+                <Link to="/settings" className={'text-sm font-medium transition-colors ' + (isActive('/settings') ? 'text-white' : 'text-gray-400 hover:text-white')}>
+                  Settings
+                </Link>
                 {user?.plan && (
-                  <div className="px-2 py-1 text-xs font-semibold text-purple-400 bg-purple-900/30 rounded-md border border-purple-700/50">
+                  <div className="px-3 py-1.5 text-xs font-semibold text-purple-300 bg-purple-900/40 rounded-lg border border-purple-600/50 backdrop-blur-sm">
                     {user.plan === 'trial' && 'Trial'}
                     {user.plan === 'creator' && 'Creator'}
                     {user.plan === 'creator_pro' && 'Pro'}
                   </div>
                 )}
-                <button onClick={logout} className="text-sm font-medium text-gray-400 hover:text-white transition-colors">
+                <button
+                  onClick={logout}
+                  className="px-4 py-2 text-sm font-semibold text-white bg-red-600/80 hover:bg-red-600 rounded-lg transition-all border border-red-500/50 backdrop-blur-sm shadow-lg shadow-red-500/20"
+                >
                   Logout
                 </button>
               </>
@@ -71,6 +93,10 @@ const Navbar = () => {
           </div>
         </div>
       </div>
+      <OnboardingModal
+        open={showOnboardingModal}
+        onClose={() => setShowOnboardingModal(false)}
+      />
     </nav>
   );
 };

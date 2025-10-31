@@ -306,6 +306,90 @@ export const userDb = {
       WHERE id = ?
     `);
     return stmt.run(Date.now(), userId);
+  },
+
+  updateOnboardingStep: (userId, step) => {
+    const stmt = db.prepare(`
+      UPDATE users
+      SET onboarding_step = ?, updated_at = ?
+      WHERE id = ?
+    `);
+    return stmt.run(step, Date.now(), userId);
+  },
+
+  completeOnboarding: (userId) => {
+    const stmt = db.prepare(`
+      UPDATE users
+      SET onboarding_completed = 1, onboarding_step = 12, updated_at = ?
+      WHERE id = ?
+    `);
+    return stmt.run(Date.now(), userId);
+  },
+
+  updateOnboardingData: (userId, data) => {
+    const updates = [];
+    const values = [];
+
+    if (data.content_type !== undefined) {
+      updates.push('content_type = ?');
+      values.push(data.content_type);
+    }
+    if (data.niche !== undefined) {
+      updates.push('niche = ?');
+      values.push(data.niche);
+    }
+    if (data.channel_size !== undefined) {
+      updates.push('channel_size = ?');
+      values.push(data.channel_size);
+    }
+    if (data.primary_goal !== undefined) {
+      updates.push('primary_goal = ?');
+      values.push(data.primary_goal);
+    }
+    if (data.upload_schedule !== undefined) {
+      updates.push('upload_schedule = ?');
+      values.push(data.upload_schedule);
+    }
+    if (data.social_links !== undefined) {
+      updates.push('social_links = ?');
+      values.push(JSON.stringify(data.social_links));
+    }
+    if (data.hashtags !== undefined) {
+      updates.push('hashtags = ?');
+      values.push(JSON.stringify(data.hashtags));
+    }
+    if (data.keywords !== undefined) {
+      updates.push('keywords = ?');
+      values.push(JSON.stringify(data.keywords));
+    }
+    if (data.demographics !== undefined) {
+      updates.push('demographics = ?');
+      values.push(JSON.stringify(data.demographics));
+    }
+    if (data.brand_voice !== undefined) {
+      updates.push('brand_voice = ?');
+      values.push(data.brand_voice);
+    }
+    if (data.competitors !== undefined) {
+      updates.push('competitors = ?');
+      values.push(JSON.stringify(data.competitors));
+    }
+    if (data.biggest_challenge !== undefined) {
+      updates.push('biggest_challenge = ?');
+      values.push(data.biggest_challenge);
+    }
+
+    if (updates.length === 0) {
+      return null;
+    }
+
+    updates.push('updated_at = ?');
+    values.push(Date.now());
+    values.push(userId);
+
+    const sql = `UPDATE users SET ${updates.join(', ')} WHERE id = ?`;
+    const stmt = db.prepare(sql);
+    return stmt.run(...values);
   }
 };
 

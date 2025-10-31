@@ -57,7 +57,7 @@ const AuthGateModal = ({ isOpen, onClose }) => {
                 Start Your Free Trial
               </h2>
               <p className="text-purple-200 text-center mb-6">
-                Create a free account to generate YouTube titles with AI
+                Create a free account to generate YouTube titles
               </p>
 
               {/* Features */}
@@ -70,7 +70,7 @@ const AuthGateModal = ({ isOpen, onClose }) => {
                   </div>
                   <div>
                     <div className="text-white font-medium">10 free generations</div>
-                    <div className="text-purple-300 text-sm">Test the power of AI-generated titles</div>
+                    <div className="text-purple-300 text-sm">Test the power of smart title generation</div>
                   </div>
                 </div>
 
@@ -93,8 +93,8 @@ const AuthGateModal = ({ isOpen, onClose }) => {
                     </svg>
                   </div>
                   <div>
-                    <div className="text-white font-medium">Multi-model AI engine</div>
-                    <div className="text-purple-300 text-sm">Powered by industry-leading AI models</div>
+                    <div className="text-white font-medium">Advanced generation engine</div>
+                    <div className="text-purple-300 text-sm">Powered by industry-leading technology</div>
                   </div>
                 </div>
               </div>

@@ -140,8 +140,8 @@ const UpgradeModal = ({ isOpen, onClose, currentPlan = 'trial' }) => {
                       </svg>
                     </div>
                     <div className="text-purple-100">
-                      <span className="font-semibold">Choose your AI provider</span>
-                      <div className="text-sm text-purple-300">OpenAI or Groq</div>
+                      <span className="font-semibold">Advanced generation settings</span>
+                      <div className="text-sm text-purple-300">Premium optimization options</div>
                     </div>
                   </div>
                 </div>
@@ -181,7 +181,7 @@ const UpgradeModal = ({ isOpen, onClose, currentPlan = 'trial' }) => {
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-white font-semibold text-sm">Creator Pro</div>
-                      <div className="text-purple-300 text-xs">75 generations/day + Grok + Gemini</div>
+                      <div className="text-purple-300 text-xs">75 generations/day + all premium features</div>
                     </div>
                     <div className="text-white font-bold">$29/mo</div>
                   </div>

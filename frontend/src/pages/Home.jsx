@@ -11,7 +11,7 @@ const Home = () => {
     {
       icon: '🎯',
       title: 'Contrast Hooks',
-      description: 'AI-powered titles with logical or illogical tension that stop the scroll'
+      description: 'Smart titles with proven tension patterns that stop the scroll'
     },
     {
       icon: '⚡',
@@ -25,8 +25,8 @@ const Home = () => {
     },
     {
       icon: '🤖',
-      title: 'Multi-Model AI',
-      description: 'Choose from OpenAI, Groq, Grok, or Gemini for your content style'
+      title: 'Advanced Generation',
+      description: 'Multiple optimization strategies available for your content style'
     },
     {
       icon: '💎',
@@ -70,7 +70,7 @@ const Home = () => {
         '10 generations per day',
         '5 titles per request',
         'Basic descriptions',
-        'AI-managed provider'
+        'Automatic optimization'
       ],
       cta: 'Start Free Trial',
       highlighted: false
@@ -83,7 +83,7 @@ const Home = () => {
         '25 generations per day',
         '10 titles per request',
         'Full SEO descriptions + tags',
-        'Choose: OpenAI or Groq'
+        'Premium generation options'
       ],
       cta: 'Go Creator',
       highlighted: true
@@ -96,7 +96,7 @@ const Home = () => {
         '75 generations per day',
         '10 titles per request',
         'Advanced SEO pack',
-        'All AI models: OpenAI, Groq, Grok, Gemini'
+        'All premium features unlocked'
       ],
       cta: 'Go Pro',
       highlighted: false
@@ -124,7 +124,7 @@ const Home = () => {
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
               </span>
               <span className="text-purple-200 text-sm font-medium">
-                Multi-Model AI Engine • Powered by Industry Leaders
+                Advanced Generation Engine • Powered by Industry Leaders
               </span>
             </div>
 
@@ -139,7 +139,7 @@ const Home = () => {
 
             {/* Subheadline */}
             <p className="text-xl md:text-2xl text-purple-200 mb-12 max-w-3xl mx-auto">
-              AI-powered title generation with contrast hooks, curiosity weaponization, and SEO optimization.
+              Smart title generation with contrast hooks, curiosity weaponization, and SEO optimization.
               <span className="block mt-2 text-purple-300">
                 From transcript to titles in seconds.
               </span>
@@ -477,7 +477,7 @@ const Home = () => {
               © 2025 TitleIQ by TightSlice. All rights reserved.
             </p>
             <p className="text-purple-400 text-xs mt-2">
-              YouTube title generator • SEO optimization • Multi-model AI • Content strategy tools
+              YouTube title generator • SEO optimization • Advanced generation • Content strategy tools
             </p>
             <p className="text-gray-500 text-xs mt-2">
               Not affiliated with or endorsed by YouTube, Google, or Alphabet Inc.

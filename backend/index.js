@@ -16,6 +16,7 @@ import generateRoutes from './routes/generate.js';
 import transcriptStartRoutes from './routes/transcriptStart.js';
 import transcriptStatusRoutes from './routes/transcriptStatus.js';
 import onboardingRoutes from './routes/onboarding.js';
+import descriptionsRoutes from './routes/descriptions.js';
 
 // Load environment variables
 dotenv.config();
@@ -86,6 +87,7 @@ app.use('/api/admin', adminLiveRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/onboarding', onboardingRoutes);
+app.use('/api/descriptions', descriptionsRoutes);
 app.use('/api/transcript', transcriptStartRoutes);
 app.use('/api/transcript/status', transcriptStatusRoutes);
 app.use('/api', generateRoutes);

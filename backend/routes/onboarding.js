@@ -20,7 +20,7 @@ router.get('/status', authenticateToken, async (req, res) => {
     if (user.role === 'admin') {
       return res.json({
         completed: true,
-        step: 12,
+        step: 6,
         shouldShow: false,
         isAdmin: true
       });
@@ -46,7 +46,7 @@ router.post('/update', authenticateToken, async (req, res) => {
   try {
     const { step, data } = req.body;
 
-    if (typeof step !== 'number' || step < 0 || step > 12) {
+    if (typeof step !== 'number' || step < 0 || step > 6) {
       return res.status(400).json({ error: 'Invalid step number' });
     }
 
@@ -58,15 +58,15 @@ router.post('/update', authenticateToken, async (req, res) => {
       userDb.updateOnboardingData(req.user.id, data);
     }
 
-    // If step is 12, mark as complete
-    if (step === 12) {
+    // If step is 6, mark as complete
+    if (step === 6) {
       userDb.completeOnboarding(req.user.id);
     }
 
     res.json({
       success: true,
       step,
-      completed: step === 12
+      completed: step === 6
     });
   } catch (error) {
     console.error('Onboarding update error:', error);

@@ -7,6 +7,7 @@ import Navbar from '../components/Navbar';
 import QuotaPill from '../components/QuotaPill';
 import AuthGateModal from '../components/AuthGateModal';
 import UpgradeModal from '../components/UpgradeModal';
+import DescriptionGenerator from '../components/DescriptionGenerator';
 
 export default function AppPage() {
   const { user, isAuthed } = useAuth();
@@ -39,6 +40,7 @@ export default function AppPage() {
   const [loadingDots, setLoadingDots] = useState('');
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [showDescriptionGenerator, setShowDescriptionGenerator] = useState(false);
 
   // Animated loading dots effect
   useEffect(() => {
@@ -682,12 +684,21 @@ export default function AppPage() {
                 >
                   <div className="flex items-start justify-between gap-4 mb-3">
                     <h3 className="text-xl font-bold text-white">SEO Description</h3>
-                    <button
-                      onClick={() => copyToClipboard(titlesResult.description)}
-                      className="px-3 py-1 bg-white/10 text-white rounded text-sm hover:bg-white/20 transition"
-                    >
-                      Copy
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setShowDescriptionGenerator(true)}
+                        className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg text-sm font-semibold hover:from-amber-600 hover:to-orange-600 transition shadow-lg"
+                      >
+                        <span className="mr-1">✨</span>
+                        4 Premium Layouts
+                      </button>
+                      <button
+                        onClick={() => copyToClipboard(titlesResult.description)}
+                        className="px-3 py-1 bg-white/10 text-white rounded text-sm hover:bg-white/20 transition"
+                      >
+                        Copy
+                      </button>
+                    </div>
                   </div>
                   <p className="text-gray-200 leading-relaxed whitespace-pre-wrap">
                     {titlesResult.description}
@@ -816,6 +827,15 @@ export default function AppPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Premium Description Generator */}
+      {showDescriptionGenerator && titlesResult && (
+        <DescriptionGenerator
+          videoTitle={titlesResult.titles[0] || 'Your Video'}
+          generationId={null}
+          onClose={() => setShowDescriptionGenerator(false)}
+        />
+      )}
     </div>
   );
 }

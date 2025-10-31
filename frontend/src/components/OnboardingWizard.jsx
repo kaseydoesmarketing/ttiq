@@ -10,19 +10,46 @@ const OnboardingWizard = ({ onComplete, relaunch = false, onSkip }) => {
   const { skipOnboarding } = useAuth();
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
+    // Step 1: Channel/Show Basics
+    brand_name: '',
     content_type: '',
+
+    // Step 2: Where You Publish
+    website_url: '',
+    social_links: {
+      youtube: '',
+      podcast_apple: '',
+      podcast_spotify: ''
+    },
+
+    // Step 3: Social Media
+    social_links_ext: {
+      instagram: '',
+      twitter: '',
+      tiktok: '',
+      facebook: ''
+    },
+
+    // Step 4: Offers & CTAs
+    primary_offer_label: '',
+    primary_offer_url: '',
+    secondary_offer_label: '',
+    secondary_offer_url: '',
+    contact_email: '',
+
+    // Step 5: Affiliate & Resources
+    affiliates: [
+      { label: '', url: '' },
+      { label: '', url: '' },
+      { label: '', url: '' }
+    ],
+    sponsor_mention: '',
+
+    // Legacy fields (keep for backwards compatibility but not shown in UI)
     niche: '',
     channel_size: '',
     primary_goal: '',
     upload_schedule: '',
-    social_links: {
-      youtube: '',
-      instagram: '',
-      tiktok: '',
-      twitter: '',
-      linkedin: '',
-      facebook: ''
-    },
     hashtags: [],
     keywords: [],
     demographics: {
@@ -34,12 +61,9 @@ const OnboardingWizard = ({ onComplete, relaunch = false, onSkip }) => {
     competitors: [],
     biggest_challenge: ''
   });
-  const [hashtagInput, setHashtagInput] = useState('');
-  const [keywordInput, setKeywordInput] = useState('');
-  const [competitorInput, setCompetitorInput] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const totalSteps = 12;
+  const totalSteps = 6;
 
   // Lock body scroll when onboarding is active
   useEffect(() => {
@@ -61,20 +85,12 @@ const OnboardingWizard = ({ onComplete, relaunch = false, onSkip }) => {
     }));
   };
 
-  const addToArray = (field, value, setInput) => {
-    if (value.trim()) {
-      setFormData(prev => ({
-        ...prev,
-        [field]: [...prev[field], value.trim()]
-      }));
-      setInput('');
-    }
-  };
-
-  const removeFromArray = (field, index) => {
+  const updateAffiliateField = (index, field, value) => {
     setFormData(prev => ({
       ...prev,
-      [field]: prev[field].filter((_, i) => i !== index)
+      affiliates: prev.affiliates.map((aff, i) =>
+        i === index ? { ...aff, [field]: value } : aff
+      )
     }));
   };
 
@@ -83,9 +99,19 @@ const OnboardingWizard = ({ onComplete, relaunch = false, onSkip }) => {
       // Save progress to backend
       try {
         const token = localStorage.getItem('titleiq_token');
+
+        // Merge social_links and social_links_ext for backend
+        const dataToSave = {
+          ...formData,
+          social_links: {
+            ...formData.social_links,
+            ...formData.social_links_ext
+          }
+        };
+
         await axios.post(
           `${API_URL}/api/onboarding/update`,
-          { step: step + 1, data: formData },
+          { step: step + 1, data: dataToSave },
           { headers: { Authorization: `Bearer ${token}` } }
         );
       } catch (error) {
@@ -121,9 +147,19 @@ const OnboardingWizard = ({ onComplete, relaunch = false, onSkip }) => {
     try {
       setLoading(true);
       const token = localStorage.getItem('titleiq_token');
+
+      // Merge social_links and social_links_ext for backend
+      const dataToSave = {
+        ...formData,
+        social_links: {
+          ...formData.social_links,
+          ...formData.social_links_ext
+        }
+      };
+
       await axios.post(
         `${API_URL}/api/onboarding/complete`,
-        { data: formData },
+        { data: dataToSave },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       onComplete();
@@ -137,263 +173,208 @@ const OnboardingWizard = ({ onComplete, relaunch = false, onSkip }) => {
     switch (step) {
       case 1:
         return (
-          <StepContainer title="What type of content do you create?">
-            <OptionGrid>
-              {['Educational', 'Entertainment', 'Gaming', 'Vlogging', 'Review/Unboxing', 'Tutorial/How-to', 'Commentary', 'Other'].map(type => (
-                <OptionButton
-                  key={type}
-                  active={formData.content_type === type}
-                  onClick={() => updateField('content_type', type)}
-                >
-                  {type}
-                </OptionButton>
-              ))}
-            </OptionGrid>
+          <StepContainer
+            title="Channel/Show Basics"
+            subtitle="Tell us about your content"
+          >
+            <div className="space-y-4">
+              <div>
+                <Label>Channel Name / Podcast Name</Label>
+                <Input
+                  placeholder="e.g., The Daily Show, MKBHD, My Fitness Channel"
+                  value={formData.brand_name}
+                  onChange={(e) => updateField('brand_name', e.target.value)}
+                />
+              </div>
+              <div>
+                <Label>Content Type</Label>
+                <OptionGrid>
+                  {['Educational', 'Podcast', 'News', 'Tech Review', 'Business', 'Lifestyle'].map(type => (
+                    <OptionButton
+                      key={type}
+                      active={formData.content_type === type}
+                      onClick={() => updateField('content_type', type)}
+                    >
+                      {type}
+                    </OptionButton>
+                  ))}
+                </OptionGrid>
+              </div>
+            </div>
           </StepContainer>
         );
 
       case 2:
         return (
-          <StepContainer title="What's your specific niche or industry?">
-            <Input
-              placeholder="e.g., Tech reviews, fitness coaching, cooking tutorials"
-              value={formData.niche}
-              onChange={(e) => updateField('niche', e.target.value)}
-            />
-            <HintText>Be as specific as possible - this helps us personalize your titles</HintText>
-          </StepContainer>
-        );
-
-      case 3:
-        return (
-          <StepContainer title="What's your current channel size?">
-            <OptionGrid>
-              {['0-1K', '1K-10K', '10K-100K', '100K-1M', '1M+'].map(size => (
-                <OptionButton
-                  key={size}
-                  active={formData.channel_size === size}
-                  onClick={() => updateField('channel_size', size)}
-                >
-                  {size} subscribers
-                </OptionButton>
-              ))}
-            </OptionGrid>
-          </StepContainer>
-        );
-
-      case 4:
-        return (
-          <StepContainer title="What's your primary goal?">
-            <OptionGrid>
-              {['Growth', 'Monetization', 'Engagement', 'Brand building', 'Education', 'Community'].map(goal => (
-                <OptionButton
-                  key={goal}
-                  active={formData.primary_goal === goal}
-                  onClick={() => updateField('primary_goal', goal)}
-                >
-                  {goal}
-                </OptionButton>
-              ))}
-            </OptionGrid>
-          </StepContainer>
-        );
-
-      case 5:
-        return (
-          <StepContainer title="How often do you upload?">
-            <OptionGrid>
-              {['Daily', '2-3x/week', 'Weekly', 'Bi-weekly', 'Monthly', 'Irregular'].map(schedule => (
-                <OptionButton
-                  key={schedule}
-                  active={formData.upload_schedule === schedule}
-                  onClick={() => updateField('upload_schedule', schedule)}
-                >
-                  {schedule}
-                </OptionButton>
-              ))}
-            </OptionGrid>
-          </StepContainer>
-        );
-
-      case 6:
-        return (
-          <StepContainer title="Connect your social media" subtitle="We'll auto-add these links to your YouTube descriptions">
+          <StepContainer
+            title="Where You Publish"
+            subtitle="Add your main content platforms"
+          >
             <div className="space-y-3">
               <SocialInput
                 icon="📺"
-                platform="YouTube"
+                platform="YouTube Channel"
                 value={formData.social_links.youtube}
                 onChange={(e) => updateNestedField('social_links', 'youtube', e.target.value)}
                 placeholder="https://youtube.com/@yourchannel"
               />
               <SocialInput
-                icon="📸"
-                platform="Instagram"
-                value={formData.social_links.instagram}
-                onChange={(e) => updateNestedField('social_links', 'instagram', e.target.value)}
-                placeholder="https://instagram.com/yourusername"
+                icon="🎙️"
+                platform="Apple Podcasts (optional)"
+                value={formData.social_links.podcast_apple}
+                onChange={(e) => updateNestedField('social_links', 'podcast_apple', e.target.value)}
+                placeholder="https://podcasts.apple.com/..."
               />
               <SocialInput
-                icon="🎵"
-                platform="TikTok"
-                value={formData.social_links.tiktok}
-                onChange={(e) => updateNestedField('social_links', 'tiktok', e.target.value)}
-                placeholder="https://tiktok.com/@yourusername"
+                icon="🎧"
+                platform="Spotify Podcast (optional)"
+                value={formData.social_links.podcast_spotify}
+                onChange={(e) => updateNestedField('social_links', 'podcast_spotify', e.target.value)}
+                placeholder="https://open.spotify.com/show/..."
+              />
+              <SocialInput
+                icon="🌐"
+                platform="Website (optional)"
+                value={formData.website_url}
+                onChange={(e) => updateField('website_url', e.target.value)}
+                placeholder="https://yourwebsite.com"
+              />
+            </div>
+          </StepContainer>
+        );
+
+      case 3:
+        return (
+          <StepContainer
+            title="Social Media"
+            subtitle="Connect your social profiles (optional but recommended)"
+          >
+            <div className="space-y-3">
+              <SocialInput
+                icon="📸"
+                platform="Instagram"
+                value={formData.social_links_ext.instagram}
+                onChange={(e) => updateNestedField('social_links_ext', 'instagram', e.target.value)}
+                placeholder="https://instagram.com/yourusername"
               />
               <SocialInput
                 icon="🐦"
                 platform="Twitter/X"
-                value={formData.social_links.twitter}
-                onChange={(e) => updateNestedField('social_links', 'twitter', e.target.value)}
+                value={formData.social_links_ext.twitter}
+                onChange={(e) => updateNestedField('social_links_ext', 'twitter', e.target.value)}
                 placeholder="https://twitter.com/yourusername"
               />
               <SocialInput
-                icon="💼"
-                platform="LinkedIn"
-                value={formData.social_links.linkedin}
-                onChange={(e) => updateNestedField('social_links', 'linkedin', e.target.value)}
-                placeholder="https://linkedin.com/in/yourprofile"
+                icon="🎵"
+                platform="TikTok"
+                value={formData.social_links_ext.tiktok}
+                onChange={(e) => updateNestedField('social_links_ext', 'tiktok', e.target.value)}
+                placeholder="https://tiktok.com/@yourusername"
               />
               <SocialInput
                 icon="👥"
                 platform="Facebook"
-                value={formData.social_links.facebook}
-                onChange={(e) => updateNestedField('social_links', 'facebook', e.target.value)}
+                value={formData.social_links_ext.facebook}
+                onChange={(e) => updateNestedField('social_links_ext', 'facebook', e.target.value)}
                 placeholder="https://facebook.com/yourpage"
               />
             </div>
           </StepContainer>
         );
 
-      case 7:
+      case 4:
         return (
-          <StepContainer title="Your favorite hashtags" subtitle="Add 5-10 hashtags you commonly use">
-            <TagInput
-              value={hashtagInput}
-              onChange={(e) => setHashtagInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  addToArray('hashtags', hashtagInput, setHashtagInput);
-                }
-              }}
-              placeholder="Type hashtag and press Enter"
-            />
-            <TagList>
-              {formData.hashtags.map((tag, i) => (
-                <Tag key={i} onRemove={() => removeFromArray('hashtags', i)}>
-                  {tag.startsWith('#') ? tag : '#' + tag}
-                </Tag>
-              ))}
-            </TagList>
-          </StepContainer>
-        );
-
-      case 8:
-        return (
-          <StepContainer title="Your target keywords" subtitle="Add 5-10 keywords for your niche">
-            <TagInput
-              value={keywordInput}
-              onChange={(e) => setKeywordInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  addToArray('keywords', keywordInput, setKeywordInput);
-                }
-              }}
-              placeholder="Type keyword and press Enter"
-            />
-            <TagList>
-              {formData.keywords.map((keyword, i) => (
-                <Tag key={i} onRemove={() => removeFromArray('keywords', i)}>
-                  {keyword}
-                </Tag>
-              ))}
-            </TagList>
-          </StepContainer>
-        );
-
-      case 9:
-        return (
-          <StepContainer title="Tell us about your audience">
+          <StepContainer
+            title="Offers & CTAs"
+            subtitle="What do you want viewers to do?"
+          >
             <div className="space-y-4">
               <div>
-                <Label>Primary age range</Label>
-                <select
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  value={formData.demographics.ageRange}
-                  onChange={(e) => updateNestedField('demographics', 'ageRange', e.target.value)}
-                >
-                  <option value="">Select age range</option>
-                  <option value="13-17">13-17</option>
-                  <option value="18-24">18-24</option>
-                  <option value="25-34">25-34</option>
-                  <option value="35-44">35-44</option>
-                  <option value="45+">45+</option>
-                </select>
+                <Label>Primary Offer (e.g., "Work with me")</Label>
+                <div className="flex gap-2">
+                  <Input
+                    className="flex-1"
+                    placeholder="Label (e.g., Work with me, Book a call)"
+                    value={formData.primary_offer_label}
+                    onChange={(e) => updateField('primary_offer_label', e.target.value)}
+                  />
+                  <Input
+                    className="flex-1"
+                    placeholder="URL"
+                    value={formData.primary_offer_url}
+                    onChange={(e) => updateField('primary_offer_url', e.target.value)}
+                  />
+                </div>
               </div>
               <div>
-                <Label>Primary location</Label>
-                <Input
-                  placeholder="e.g., United States, Global, Europe"
-                  value={formData.demographics.location}
-                  onChange={(e) => updateNestedField('demographics', 'location', e.target.value)}
-                />
+                <Label>Secondary Offer (optional - e.g., "Free training")</Label>
+                <div className="flex gap-2">
+                  <Input
+                    className="flex-1"
+                    placeholder="Label (e.g., Free course, Join newsletter)"
+                    value={formData.secondary_offer_label}
+                    onChange={(e) => updateField('secondary_offer_label', e.target.value)}
+                  />
+                  <Input
+                    className="flex-1"
+                    placeholder="URL"
+                    value={formData.secondary_offer_url}
+                    onChange={(e) => updateField('secondary_offer_url', e.target.value)}
+                  />
+                </div>
               </div>
               <div>
-                <Label>Key interests</Label>
+                <Label>Contact Email (optional)</Label>
                 <Input
-                  placeholder="e.g., Technology, gaming, fitness"
-                  value={formData.demographics.interests}
-                  onChange={(e) => updateNestedField('demographics', 'interests', e.target.value)}
+                  placeholder="your@email.com"
+                  value={formData.contact_email}
+                  onChange={(e) => updateField('contact_email', e.target.value)}
                 />
               </div>
             </div>
           </StepContainer>
         );
 
-      case 10:
+      case 5:
         return (
-          <StepContainer title="What's your brand voice?">
-            <OptionGrid>
-              {['Professional', 'Casual', 'Energetic', 'Educational', 'Funny', 'Inspirational'].map(voice => (
-                <OptionButton
-                  key={voice}
-                  active={formData.brand_voice === voice}
-                  onClick={() => updateField('brand_voice', voice)}
-                >
-                  {voice}
-                </OptionButton>
+          <StepContainer
+            title="Affiliate & Resources"
+            subtitle="Add up to 3 affiliate or product links (optional)"
+          >
+            <div className="space-y-4">
+              {formData.affiliates.map((aff, index) => (
+                <div key={index}>
+                  <Label>Link {index + 1}</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      className="flex-1"
+                      placeholder="Label (e.g., Camera I use, My course)"
+                      value={aff.label}
+                      onChange={(e) => updateAffiliateField(index, 'label', e.target.value)}
+                    />
+                    <Input
+                      className="flex-1"
+                      placeholder="URL"
+                      value={aff.url}
+                      onChange={(e) => updateAffiliateField(index, 'url', e.target.value)}
+                    />
+                  </div>
+                </div>
               ))}
-            </OptionGrid>
+              <div>
+                <Label>Sponsor Mention (optional)</Label>
+                <Input
+                  placeholder="e.g., Brought to you by [Sponsor Name]"
+                  value={formData.sponsor_mention}
+                  onChange={(e) => updateField('sponsor_mention', e.target.value)}
+                />
+                <HintText>This will appear in podcast-style descriptions</HintText>
+              </div>
+            </div>
           </StepContainer>
         );
 
-      case 11:
-        return (
-          <StepContainer title="Competitors you admire" subtitle="Add 3-5 YouTube channels you look up to">
-            <TagInput
-              value={competitorInput}
-              onChange={(e) => setCompetitorInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  addToArray('competitors', competitorInput, setCompetitorInput);
-                }
-              }}
-              placeholder="Type channel name and press Enter"
-            />
-            <TagList>
-              {formData.competitors.map((comp, i) => (
-                <Tag key={i} onRemove={() => removeFromArray('competitors', i)}>
-                  {comp}
-                </Tag>
-              ))}
-            </TagList>
-          </StepContainer>
-        );
-
-      case 12:
+      case 6:
         return (
           <StepContainer title="You're all set!">
             <div className="text-center">
@@ -407,7 +388,7 @@ const OnboardingWizard = ({ onComplete, relaunch = false, onSkip }) => {
                   You're ready to create amazing titles!
                 </h3>
                 <p className="text-gray-600 mb-6">
-                  We've personalized TitleIQ based on your profile. Need help getting started? Watch our quick tutorial.
+                  We've personalized TitleIQ based on your profile. Your descriptions will now auto-include your links and CTAs.
                 </p>
               </div>
               <div className="flex gap-3 justify-center">
@@ -566,34 +547,12 @@ const SocialInput = ({ icon, platform, ...props }) => (
   </div>
 );
 
-const TagInput = ({ ...props }) => (
-  <Input {...props} />
-);
-
-const TagList = ({ children }) => (
-  <div className="flex flex-wrap gap-2 mt-4">
-    {children}
-  </div>
-);
-
-const Tag = ({ children, onRemove }) => (
-  <div className="px-3 py-1.5 bg-purple-100 text-purple-700 rounded-full text-sm flex items-center gap-2 border border-purple-200">
-    {children}
-    <button
-      onClick={onRemove}
-      className="hover:text-purple-900 transition"
-    >
-      ×
-    </button>
-  </div>
-);
-
 const HintText = ({ children }) => (
   <p className="text-gray-500 text-sm mt-2">{children}</p>
 );
 
 const Label = ({ children }) => (
-  <label className="text-gray-700 text-sm mb-2 block">{children}</label>
+  <label className="text-gray-700 text-sm mb-2 block font-medium">{children}</label>
 );
 
 export default OnboardingWizard;

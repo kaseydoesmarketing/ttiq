@@ -231,6 +231,17 @@ const Dashboard = () => {
           {history.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-purple-200 mb-4">No generations yet</p>
+              <p className="text-purple-300 text-sm mb-4">
+                Not sure what to do first?{' '}
+                <a
+                  href="https://www.youtube.com/watch?v=YOUR_TUTORIAL_ID"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-purple-400 hover:text-purple-300 underline"
+                >
+                  Watch the 2-minute walkthrough
+                </a>
+              </p>
               <button
                 onClick={() => navigate('/app')}
                 className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-semibold hover:from-purple-600 hover:to-pink-600 transition"

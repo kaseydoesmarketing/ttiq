@@ -59,6 +59,17 @@ const Navbar = () => {
               </>
             ) : (
               <>
+                <a
+                  href="https://www.youtube.com/watch?v=YOUR_TUTORIAL_ID"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-sm font-medium text-purple-200 hover:text-white transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" />
+                  </svg>
+                  Watch Tutorial
+                </a>
                 <Link to="/dashboard" className={'text-sm font-medium transition-colors ' + (isActive('/dashboard') ? 'text-white' : 'text-gray-400 hover:text-white')}>
                   Dashboard
                 </Link>

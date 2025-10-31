@@ -395,18 +395,39 @@ const OnboardingWizard = ({ onComplete, relaunch = false, onSkip }) => {
 
       case 12:
         return (
-          <StepContainer title="What's your biggest challenge?">
-            <OptionGrid>
-              {['Low CTR', 'Not ranking', 'Standing out', 'Consistency', 'Ideas', 'Audience growth'].map(challenge => (
-                <OptionButton
-                  key={challenge}
-                  active={formData.biggest_challenge === challenge}
-                  onClick={() => updateField('biggest_challenge', challenge)}
+          <StepContainer title="You're all set!">
+            <div className="text-center">
+              <div className="mb-6">
+                <div className="w-20 h-20 mx-auto mb-4 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+                  <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">
+                  You're ready to create amazing titles!
+                </h3>
+                <p className="text-gray-600 mb-6">
+                  We've personalized TitleIQ based on your profile. Need help getting started? Watch our quick tutorial.
+                </p>
+              </div>
+              <div className="flex gap-3 justify-center">
+                <a
+                  href="https://www.youtube.com/watch?v=YOUR_TUTORIAL_ID"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-6 py-3 bg-purple-500/20 text-purple-700 rounded-lg font-semibold hover:bg-purple-500/30 transition border border-purple-200"
                 >
-                  {challenge}
-                </OptionButton>
-              ))}
-            </OptionGrid>
+                  Watch Tutorial
+                </a>
+                <button
+                  onClick={handleComplete}
+                  disabled={loading}
+                  className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-semibold hover:from-purple-600 hover:to-pink-600 transition shadow-md disabled:opacity-50"
+                >
+                  {loading ? 'Saving...' : 'Go to Dashboard'}
+                </button>
+              </div>
+            </div>
           </StepContainer>
         );
 

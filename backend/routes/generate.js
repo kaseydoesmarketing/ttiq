@@ -159,7 +159,8 @@ router.post('/generate', standardRateLimit, optionalAuth, async (req, res) => {
             { label: 'Website', url: userContext.website_url, affiliate: false }
           ] : [],
           hashtags: result.tags || [],
-          leadText: result.description.split('\n')[0] // Use LLM's lead if available
+          leadText: result.description.split('\n')[0], // Use LLM's lead if available
+          title: limitedTitles[0] || '' // Pass first title for hashtag generation
         });
       } catch (error) {
         console.error('Description builder error:', error);

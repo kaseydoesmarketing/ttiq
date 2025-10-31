@@ -3,12 +3,14 @@
  * Structured, SEO-optimized YouTube descriptions
  *
  * Features:
- * - Keyword-rich lead paragraph
- * - Key takeaways (bullet points)
- * - Resources & links (sanitized)
- * - Social links block
- * - Hashtags (max 10)
+ * - Keyword-rich hook (1-2 sentences)
+ * - "You'll see/learn" bullet points (3-5 items)
+ * - Optional CTA (if user provided contact info)
+ * - User links (YouTube, website, social)
+ * - Content-aware hashtags (5-7 items, NO branding)
  */
+
+import { generateContentAwareHashtags, mergeHashtags } from './hashtagGenerator.js';
 
 /**
  * Build structured description
@@ -18,8 +20,9 @@
  * @param {Object} options.profile - User profile data
  * @param {string[]} options.keyTakeaways - Array of key points (3-5)
  * @param {Object[]} options.resources - Array of {label, url, affiliate}
- * @param {string[]} options.hashtags - Array of hashtags (max 10)
+ * @param {string[]} options.hashtags - Array of hashtags (from LLM)
  * @param {string} options.leadText - Optional custom lead paragraph
+ * @param {string} options.title - Video title (for hashtag generation)
  * @returns {string} - Formatted description
  */
 export function buildDescription(options = {}) {
@@ -29,76 +32,139 @@ export function buildDescription(options = {}) {
     keyTakeaways = [],
     resources = [],
     hashtags = [],
-    leadText = ''
+    leadText = '',
+    title = ''
   } = options;
 
   const sections = [];
 
-  // 1. LEAD PARAGRAPH (2-3 lines, keyword-rich)
-  const lead = leadText || generateLeadParagraph(transcript, profile);
-  sections.push(lead);
+  // 1. HOOK (1-2 sentences about actual content)
+  const hook = leadText || generateHook(transcript, profile, title);
+  sections.push(hook);
 
-  // 2. KEY TAKEAWAYS (if provided)
+  // 2. "YOU'LL SEE/LEARN" SECTION (3-5 bullet points)
   if (keyTakeaways.length > 0) {
     sections.push(''); // Blank line
-    sections.push('🎯 Key Takeaways:');
+    sections.push("You'll see:");
     keyTakeaways.slice(0, 5).forEach(takeaway => {
-      sections.push(`• ${takeaway}`);
+      sections.push(`- ${takeaway}`);
     });
   }
 
-  // 3. RESOURCES & LINKS (if provided)
-  if (resources.length > 0) {
+  // 3. OPTIONAL CTA (only if user provided contact info)
+  const cta = generateCTA(profile);
+  if (cta) {
     sections.push(''); // Blank line
-    sections.push('🔗 Resources:');
-
-    resources.forEach(resource => {
-      if (resource.url) {
-        sections.push(`${resource.label}: ${sanitizeUrl(resource.url)}`);
-      }
-    });
-
-    // Affiliate disclosure if any resource is affiliate link
-    const hasAffiliate = resources.some(r => r.affiliate);
-    if (hasAffiliate) {
-      sections.push('');
-      sections.push('*Some links above are affiliate links, which means I may earn a commission at no extra cost to you.');
-    }
+    sections.push(cta);
   }
 
-  // 4. SOCIAL LINKS (from profile)
-  const socialLinks = buildSocialLinksBlock(profile.social_links);
-  if (socialLinks) {
+  // 4. USER LINKS (YouTube, website, social)
+  const userLinks = buildUserLinksBlock(profile);
+  if (userLinks) {
     sections.push(''); // Blank line
-    sections.push('📱 Connect with me:');
-    sections.push(socialLinks);
+    sections.push(userLinks);
   }
 
-  // 5. HASHTAGS (max 10)
-  const finalHashtags = buildHashtagsLine(hashtags, profile.hashtags);
-  if (finalHashtags) {
+  // 5. CONTENT-AWARE HASHTAGS (5-7, NO branding)
+  const contentAwareHashtags = generateContentAwareHashtags(
+    title,
+    transcript,
+    profile,
+    profile.content_type || 'long-form'
+  );
+
+  // Merge with user-provided hashtags (filtered)
+  const userHashtags = profile.hashtags || [];
+  const finalHashtags = mergeHashtags(
+    contentAwareHashtags,
+    userHashtags,
+    profile.content_type || 'long-form'
+  );
+
+  if (finalHashtags.length > 0) {
     sections.push(''); // Blank line
-    sections.push(finalHashtags);
+    sections.push(finalHashtags.join(' '));
   }
 
   return sections.join('\n');
 }
 
 /**
- * Generate lead paragraph from transcript
- * 2-3 sentences, keyword-rich
+ * Generate hook from transcript
+ * 1-2 sentences about actual content
  */
-function generateLeadParagraph(transcript, profile) {
-  // If no transcript, use generic lead
+function generateHook(transcript, profile, title) {
+  // If no transcript, use title-based hook
   if (!transcript || transcript.trim().length === 0) {
-    return `In this video, we dive deep into ${profile.niche || 'the topic at hand'}. Whether you're just getting started or looking to level up, you'll find actionable insights here.`;
+    if (title) {
+      return `${title} - everything you need to know.`;
+    }
+    return `In this video, we dive deep into ${profile.niche || 'the topic at hand'}.`;
   }
 
   // Extract first 200 chars of transcript as basis
   const excerpt = transcript.substring(0, 200).trim();
 
-  // Simple lead template (in production, this would use AI)
-  return `In this episode, we explore ${profile.niche || 'key topics'} with practical strategies you can implement today. Perfect for ${profile.channel_size || 'creators'} looking to ${profile.primary_goal || 'grow their channel'}.`;
+  // Create engaging hook based on content
+  if (profile.niche) {
+    return `Dive into ${profile.niche} with actionable strategies you can implement today. Perfect for ${profile.channel_size || 'creators'} looking to ${profile.primary_goal || 'level up'}.`;
+  }
+
+  return `In this episode, we explore practical insights and strategies. Whether you're just starting or looking to level up, you'll find value here.`;
+}
+
+/**
+ * Generate CTA (only if user provided contact info)
+ */
+function generateCTA(profile) {
+  // Only generate CTA if user has social links, website, or specific goal
+  const hasSocialLinks = profile.social_links && Object.keys(profile.social_links).length > 0;
+  const hasWebsite = profile.website_url && profile.website_url.trim().length > 0;
+
+  if (!hasSocialLinks && !hasWebsite) {
+    return null;
+  }
+
+  // Goal-based CTA
+  if (profile.primary_goal) {
+    const goal = profile.primary_goal.toLowerCase();
+
+    if (goal.includes('growth') || goal.includes('subscriber')) {
+      return "Subscribe for more content like this!";
+    } else if (goal.includes('engagement')) {
+      return "Drop a comment and let me know what you think!";
+    } else if (goal.includes('monetization') || goal.includes('sales')) {
+      return "Like and subscribe to support the channel!";
+    } else if (goal.includes('community')) {
+      return "Join the community - subscribe and hit the bell!";
+    }
+  }
+
+  // Default CTA
+  return "Hit subscribe for more!";
+}
+
+/**
+ * Build user links block (YouTube, website, social)
+ */
+function buildUserLinksBlock(profile) {
+  const links = [];
+
+  // Website URL (highest priority)
+  if (profile.website_url && profile.website_url.trim()) {
+    links.push(`Website: ${sanitizeUrl(profile.website_url)}`);
+  }
+
+  // Social links
+  const socialLinks = buildSocialLinksBlock(profile.social_links);
+  if (socialLinks) {
+    if (links.length > 0) {
+      links.push(''); // Blank line between website and socials
+    }
+    links.push(socialLinks);
+  }
+
+  return links.length > 0 ? links.join('\n') : null;
 }
 
 /**
@@ -138,40 +204,6 @@ function buildSocialLinksBlock(socialLinksJson) {
   });
 
   return lines.join('\n');
-}
-
-/**
- * Build hashtags line (max 10)
- */
-function buildHashtagsLine(primaryHashtags, profileHashtagsJson) {
-  let allHashtags = [...primaryHashtags];
-
-  // Add profile hashtags if available
-  if (profileHashtagsJson) {
-    try {
-      const profileHashtags = typeof profileHashtagsJson === 'string'
-        ? JSON.parse(profileHashtagsJson)
-        : profileHashtagsJson;
-
-      if (Array.isArray(profileHashtags)) {
-        allHashtags = [...allHashtags, ...profileHashtags];
-      }
-    } catch {
-      // Ignore parse errors
-    }
-  }
-
-  // Deduplicate and limit to 10
-  const uniqueHashtags = [...new Set(allHashtags)]
-    .filter(tag => tag && tag.trim())
-    .map(tag => tag.trim().startsWith('#') ? tag.trim() : `#${tag.trim()}`)
-    .slice(0, 10);
-
-  if (uniqueHashtags.length === 0) {
-    return null;
-  }
-
-  return uniqueHashtags.join(' ');
 }
 
 /**
